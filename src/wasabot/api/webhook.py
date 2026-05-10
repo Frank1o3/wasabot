@@ -1,15 +1,40 @@
 # src/wasabot/webhook.py
+"""
+WhatsApp webhook handler with AI pipeline integration.
+
+🐍 PYTHON NATIVE: FastAPI BackgroundTasks for async processing, 3-second response guarantee
+"""
 import os
+import uuid
 from pathlib import Path
 import secrets
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 
 from wasabot.analyzer import analyze_payload_safe, get_message_summary
+from wasabot.services.logger import (
+    setup_logging,
+    set_correlation_id,
+    CorrelationContext,
+    get_logger,
+)
+from wasabot.services.db import save_profile
+from wasabot.services.whatsapp_api import get_whatsapp_client
+from wasabot.services.voice import get_voice_service
+from wasabot.services.ai_pipeline import process_user_message, AIPipelineResult
+from wasabot.services.scheduler import start_scheduler
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 temp_file = Path(__file__).parent / "data.json"
+
+# Initialize logging on module load
+setup_logging()
+
+logger.info("webhook_module_loaded")
+# Note: Scheduler is started by the main app (app.py) when uvicorn runs
 
 
 @router.get("/")
@@ -53,39 +78,184 @@ async def webhook_get(request: Request) -> PlainTextResponse:
     return PlainTextResponse(content="Verification failed", status_code=403)
 
 
+async def _process_text_message(
+    wa_id: str,
+    message_body: str,
+    correlation_id: str,
+    is_group: bool = False,
+) -> None:
+    """
+    Process a text message through the AI pipeline.
+    
+    This runs in the background to ensure webhook responds within 3 seconds.
+    """
+    with CorrelationContext(correlation_id):
+        try:
+            logger.info(f"text_message_processing | wa_id={wa_id}")
+
+            # Ensure profile exists (basic initialization)
+            save_profile(wa_id=wa_id)
+
+            # Process through AI pipeline
+            result = await process_user_message(wa_id, message_body, is_group)
+
+            if result is None:
+                logger.error("ai_pipeline_returned_none | wa_id={wa_id}")
+                return
+
+            # Send reply via WhatsApp API
+            whatsapp_client = get_whatsapp_client()
+            
+            # Send text reply
+            await whatsapp_client.send_text(wa_id, result.reply)
+
+            # Send video if marker was present
+            if result.send_video:
+                video_url = result.video_url
+                if video_url:
+                    await whatsapp_client.send_video(wa_id, video_url, caption=result.reply)
+                else:
+                    logger.warning("video_marker_without_url | wa_id={wa_id}")
+
+            logger.info(f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}")
+
+        except Exception as e:
+            logger.error(f"text_message_processing_failed | error={str(e)}")
+
+
+async def _process_voice_message(
+    wa_id: str,
+    media_url: str,
+    correlation_id: str,
+    is_group: bool = False,
+) -> None:
+    """
+    Process a voice message: download → transcribe → AI pipeline.
+    
+    This runs in the background to ensure webhook responds within 3 seconds.
+    """
+    with CorrelationContext(correlation_id):
+        try:
+            logger.info(f"voice_message_processing | wa_id={wa_id}")
+
+            # Ensure profile exists
+            save_profile(wa_id=wa_id)
+
+            # Download audio from WhatsApp
+            whatsapp_client = get_whatsapp_client()
+            audio_data = await whatsapp_client.download_media(media_url)
+
+            if audio_data is None:
+                logger.error("voice_download_failed | wa_id={wa_id}")
+                return
+
+            # Transcribe with Groq Whisper
+            voice_service = get_voice_service()
+            transcribed_text = await voice_service.transcribe_audio(audio_data)
+
+            if not transcribed_text:
+                logger.warning("voice_transcription_empty | wa_id={wa_id}")
+                # Send acknowledgment even if transcription failed
+                await whatsapp_client.send_text(wa_id, "No escuché bien, ¿puedes repetir? 🤷")
+                return
+
+            logger.info(f"voice_transcribed | wa_id={wa_id} | text='{transcribed_text[:50]}...'")
+
+            # Process transcribed text through AI pipeline
+            result = await process_user_message(wa_id, transcribed_text, is_group)
+
+            if result is None:
+                logger.error("ai_pipeline_returned_none | wa_id={wa_id}")
+                return
+
+            # Send reply
+            await whatsapp_client.send_text(wa_id, result.reply)
+
+            # Send video if marker was present
+            if result.send_video:
+                video_url = result.video_url
+                if video_url:
+                    await whatsapp_client.send_video(wa_id, video_url, caption=result.reply)
+
+            logger.info(f"voice_message_completed | wa_id={wa_id}")
+
+        except Exception as e:
+            logger.error(f"voice_message_processing_failed | error={str(e)}")
+
+
 @router.post("/")
-async def webhook_post(request: Request) -> PlainTextResponse:
-    raw_payload = await request.json()
+async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> PlainTextResponse:
+    """
+    WhatsApp webhook POST handler.
+    
+    🐍 PYTHON NATIVE: Uses FastAPI BackgroundTasks to ensure <3s response time
+    while heavy processing happens asynchronously.
+    """
+    # Generate correlation ID for this webhook
+    correlation_id = set_correlation_id()
+    
+    try:
+        raw_payload = await request.json()
 
-    # Parse with analyzer for typed access
-    payload = analyze_payload_safe(raw_payload)
+        # Parse with analyzer for typed access
+        payload = analyze_payload_safe(raw_payload)
 
-    if payload is None:
-        print("[WEBHOOK] ❌ failed to parse payload")
-        return PlainTextResponse(content="Invalid payload", status_code=400)
+        if payload is None:
+            logger.error("payload_parse_failed", extra={"meta": {"correlation_id": correlation_id}})
+            return PlainTextResponse(content="Invalid payload", status_code=400)
 
-    # Now you have full IDE completion on `payload`! 🎉
-    summary = get_message_summary(payload)
-    print(f"[WEBHOOK] ✅ parsed | {summary}")
+        # Log summary
+        summary = get_message_summary(payload)
+        logger.info(f"webhook_received | {summary}", extra={"meta": {"correlation_id": correlation_id}})
 
-    # Example: Process text messages with autocompletion
-    for msg in payload.text_messages:
-        user_id = msg.from_  # ← IDE knows this is str
-        body = msg.text.body if msg.text else ""  # ← IDE knows text is TextContent | None
-        print(f"💬 [TEXT] from={user_id} | body='{body}'")
+        # Process each message type
+        messages_processed = 0
 
-        # Access optional context/referral with completion
-        if msg.context and msg.context.forwarded:
-            print("   ↳ forwarded message")
-        if msg.referral and msg.referral.source_type:
-            print(f"   ↳ from ad: {msg.referral.source_type}")
+        # Text messages
+        for msg in payload.text_messages:
+            user_id = msg.from_
+            body = msg.text.body if msg.text else ""
+            is_group = msg.is_group_message
+            
+            logger.info(f"text_message_queued | from={user_id} | body='{body[:50]}...'")
+            
+            # Offload to background task
+            background_tasks.add_task(
+                _process_text_message,
+                user_id,
+                body,
+                correlation_id,
+                is_group,
+            )
+            messages_processed += 1
 
-    # Example: Process voice messages
-    for msg in payload.voice_messages:
-        if msg.audio:
-            print(f"🎤 [VOICE] from={msg.from_} | media_id={msg.audio.id} | url={msg.audio.url}")
+        # Voice messages
+        for msg in payload.voice_messages:
+            if msg.audio and msg.audio.url:
+                user_id = msg.from_
+                media_url = msg.audio.url
+                is_group = msg.is_group_message
+                
+                logger.info(f"voice_message_queued | from={user_id} | media_id={msg.audio.id}")
+                
+                # Offload to background task
+                background_tasks.add_task(
+                    _process_voice_message,
+                    user_id,
+                    media_url,
+                    correlation_id,
+                    is_group,
+                )
+                messages_processed += 1
 
-    # Save raw for debugging (optional)
-    temp_file.write_text(str(raw_payload))
+        # Save raw for debugging (optional)
+        temp_file.write_text(str(raw_payload))
 
-    return PlainTextResponse(content="Event received", status_code=200)
+        logger.info(f"webhook_processing_complete | messages_queued={messages_processed}")
+
+        # Return immediately - background tasks continue processing
+        return PlainTextResponse(content="Event received", status_code=200)
+
+    except Exception as e:
+        logger.error(f"webhook_handler_failed | error={str(e)}")
+        return PlainTextResponse(content="Internal error", status_code=500)
