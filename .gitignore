@@ -1,4 +1,4 @@
-```
+
 # Python
 __pycache__/
 *.pyc
@@ -53,4 +53,4 @@ Thumbs.db
 *.seed
 *.session
 *.dump
-```
+data
