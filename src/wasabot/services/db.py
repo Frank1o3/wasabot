@@ -3,13 +3,14 @@ SQLite database service with thread-safe connection pooling.
 
 🐍 PYTHON NATIVE: Uses threading.local() for per-thread connections, built-in sqlite3
 """
+
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import json
+from pathlib import Path
 import sqlite3
 import threading
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from wasabot.config import get_settings
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 class DatabasePool:
     """
     Thread-safe SQLite connection pool using threading.local().
-    
+
     🐍 PYTHON NATIVE: Each thread gets its own connection via threading.local()
     """
 
@@ -112,7 +113,9 @@ def _init_tables(pool: DatabasePool) -> None:
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_wa_id ON conversations(wa_id)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)"
+    )
 
     # Scheduled tasks table
     cursor.execute("""
@@ -149,7 +152,8 @@ def save_profile(
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO profiles (wa_id, name, traits, topics, notes, status, last_active)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(wa_id) DO UPDATE SET
@@ -159,15 +163,17 @@ def save_profile(
             notes = COALESCE(excluded.notes, profiles.notes),
             status = COALESCE(excluded.status, profiles.status),
             last_active = excluded.last_active
-    """, (
-        wa_id,
-        name,
-        json.dumps(traits) if traits else None,
-        json.dumps(topics) if topics else None,
-        notes,
-        status,
-        int(datetime.now(timezone.utc).timestamp()),
-    ))
+    """,
+        (
+            wa_id,
+            name,
+            json.dumps(traits) if traits else None,
+            json.dumps(topics) if topics else None,
+            notes,
+            status,
+            int(datetime.now(UTC).timestamp()),
+        ),
+    )
 
     conn.commit()
     logger.info(f"profile_saved | wa_id={wa_id}")
@@ -216,12 +222,15 @@ def add_conversation(wa_id: str, role: str, content: str) -> None:
     conn = pool.connection
     cursor = conn.cursor()
 
-    timestamp = int(datetime.now(timezone.utc).timestamp())
+    timestamp = int(datetime.now(UTC).timestamp())
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO conversations (wa_id, role, content, timestamp)
         VALUES (?, ?, ?, ?)
-    """, (wa_id, role, content, timestamp))
+    """,
+        (wa_id, role, content, timestamp),
+    )
 
     conn.commit()
     logger.debug(f"conversation_added | wa_id={wa_id} | role={role}")
@@ -233,13 +242,16 @@ def load_conversation(wa_id: str, limit: int = 20) -> list[dict[str, Any]]:
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT role, content, timestamp
         FROM conversations
         WHERE wa_id = ?
         ORDER BY timestamp DESC
         LIMIT ?
-    """, (wa_id, limit))
+    """,
+        (wa_id, limit),
+    )
 
     rows = cursor.fetchall()
     # Return in chronological order (oldest first)
@@ -275,10 +287,13 @@ def add_task(
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group)
         VALUES (?, ?, ?, ?, ?, ?)
-    """, (task_id, wa_id, message, execute_at, correlation_id, 1 if is_group else 0))
+    """,
+        (task_id, wa_id, message, execute_at, correlation_id, 1 if is_group else 0),
+    )
 
     conn.commit()
     logger.info(f"task_scheduled | task_id={task_id} | execute_at={execute_at}")
@@ -287,18 +302,21 @@ def add_task(
 def get_due_tasks(current_time: int | None = None) -> list[dict[str, Any]]:
     """Get all tasks that are due for execution."""
     if current_time is None:
-        current_time = int(datetime.now(timezone.utc).timestamp())
+        current_time = int(datetime.now(UTC).timestamp())
 
     pool = get_db_pool()
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT task_id, wa_id, message, execute_at, correlation_id, is_group
         FROM scheduled_tasks
         WHERE execute_at <= ?
         ORDER BY execute_at ASC
-    """, (current_time,))
+    """,
+        (current_time,),
+    )
 
     rows = cursor.fetchall()
     tasks = []
@@ -329,11 +347,14 @@ def get_task(task_id: str) -> dict[str, Any] | None:
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT task_id, wa_id, message, execute_at, correlation_id, is_group
         FROM scheduled_tasks
         WHERE task_id = ?
-    """, (task_id,))
+    """,
+        (task_id,),
+    )
 
     row = cursor.fetchone()
     if row is None:

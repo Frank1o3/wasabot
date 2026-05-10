@@ -3,6 +3,7 @@ Configuration management using pydantic-settings.
 
 🐍 PYTHON NATIVE: Uses pydantic-settings for env var management instead of manual os.getenv()
 """
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -61,7 +62,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """
     Get cached settings instance.
-    
     🐍 PYTHON NATIVE: lru_cache ensures singleton pattern without global variables
     """
     return Settings()

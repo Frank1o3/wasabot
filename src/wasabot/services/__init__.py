@@ -12,22 +12,22 @@ Contains core business logic services:
 - scheduler: APScheduler background task polling
 """
 
-from wasabot.services.logger import setup_logging, get_logger
-from wasabot.services.db import get_db_pool
-from wasabot.services.whatsapp_api import get_whatsapp_client
-from wasabot.services.voice import get_voice_service
 from wasabot.services.ai_pipeline import get_ai_pipeline, process_user_message
-from wasabot.services.scheduler import start_scheduler, stop_scheduler, get_scheduler
+from wasabot.services.db import get_db_pool
+from wasabot.services.logger import get_logger, setup_logging
+from wasabot.services.scheduler import get_scheduler, start_scheduler, stop_scheduler
+from wasabot.services.voice import get_voice_service
+from wasabot.services.whatsapp_api import get_whatsapp_client
 
 __all__ = [
-    "setup_logging",
-    "get_logger",
-    "get_db_pool",
-    "get_whatsapp_client",
-    "get_voice_service",
     "get_ai_pipeline",
+    "get_db_pool",
+    "get_logger",
+    "get_scheduler",
+    "get_voice_service",
+    "get_whatsapp_client",
     "process_user_message",
+    "setup_logging",
     "start_scheduler",
     "stop_scheduler",
-    "get_scheduler",
 ]

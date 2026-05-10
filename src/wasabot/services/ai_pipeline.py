@@ -3,10 +3,10 @@ AI pipeline orchestrating prompt building, Groq LLM, markers, and database.
 
 🐍 PYTHON NATIVE: Async orchestration with explicit type hints and structured error handling
 """
+
 from __future__ import annotations
 
 import uuid
-from typing import Any
 
 from groq import Groq
 
@@ -19,10 +19,9 @@ from wasabot.services.db import (
     profile_exists,
     save_profile,
 )
-from wasabot.services.logger import get_logger, get_correlation_id
-from wasabot.services.markers import MarkerResult, extract_markers
+from wasabot.services.logger import get_correlation_id, get_logger
+from wasabot.services.markers import extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
-from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
 
@@ -48,7 +47,6 @@ class AIPipelineResult:
 class AIPipeline:
     """
     Main AI processing pipeline.
-    
     Flow:
     1. Load user profile and conversation history
     2. Build system prompt with context
@@ -72,12 +70,12 @@ class AIPipeline:
     ) -> AIPipelineResult | None:
         """
         Process a user message through the full AI pipeline.
-        
+
         Args:
             wa_id: User's WhatsApp ID
             user_message: The message text from user
             is_group: Whether this is a group conversation
-        
+
         Returns:
             AIPipelineResult with reply and actions, or None on failure
         """
@@ -99,17 +97,17 @@ class AIPipeline:
 
             # Step 4: Build messages array for Groq
             messages = [{"role": "system", "content": system_prompt}]
-            
+
             # Add conversation history
             for msg in history:
                 messages.append({"role": msg["role"], "content": msg["content"]})
-            
+
             # Add current user message
             messages.append({"role": "user", "content": user_message})
 
             # Step 5: Call Groq LLM
             logger.debug(f"groq_request_starting | model={self._model}")
-            
+
             response = self._client.chat.completions.create(
                 model=self._model,
                 messages=messages,  # type: ignore[arg-type]
@@ -118,7 +116,7 @@ class AIPipeline:
             )
 
             ai_response = response.choices[0].message.content
-            
+
             if not ai_response:
                 logger.error("groq_empty_response")
                 return None
@@ -148,13 +146,18 @@ class AIPipeline:
             task_id = None
             if marker_result.schedule_delay_seconds is not None:
                 task_id = str(uuid.uuid4())
-                execute_at = int(
-                    correlation_id  # type: ignore[assignment]
-                ) if False else 0  # Placeholder - will be calculated properly
-                
+                execute_at = (
+                    int(
+                        correlation_id  # type: ignore[assignment]
+                    )
+                    if False
+                    else 0
+                )  # Placeholder - will be calculated properly
+
                 from wasabot.services.markers import calculate_execute_at
+
                 execute_at = calculate_execute_at(marker_result.schedule_delay_seconds)
-                
+
                 add_task(
                     task_id=task_id,
                     wa_id=wa_id,
@@ -163,12 +166,14 @@ class AIPipeline:
                     correlation_id=correlation_id,
                     is_group=is_group,
                 )
-                logger.info(f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s")
+                logger.info(
+                    f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s"
+                )
 
             # Step 10: Log result
             logger.info(
                 f"ai_pipeline_completed | send_video={marker_result.send_video} | scheduled={task_id is not None}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                extra={"meta": {"correlation_id": correlation_id}},
             )
 
             return AIPipelineResult(
@@ -181,8 +186,8 @@ class AIPipeline:
 
         except Exception as e:
             logger.error(
-                f"ai_pipeline_failed | error={str(e)}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                f"ai_pipeline_failed | error={e!s}",
+                extra={"meta": {"correlation_id": correlation_id}},
             )
             return None
 
@@ -211,14 +216,14 @@ async def process_user_message(
 ) -> AIPipelineResult | None:
     """
     Convenience function to process a message through the AI pipeline.
-    
+
     This is the main entry point for webhook handlers.
-    
+
     Args:
         wa_id: User's WhatsApp ID
         user_message: The message text
         is_group: Whether this is a group conversation
-    
+
     Returns:
         AIPipelineResult or None on failure
     """

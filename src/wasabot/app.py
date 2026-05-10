@@ -5,8 +5,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from wasabot.api.webhook import router as webhook_router
+from wasabot.services.logger import get_logger, setup_logging
 from wasabot.services.scheduler import start_scheduler
-from wasabot.services.logger import setup_logging, get_logger
 
 # Setup logging before anything else
 setup_logging()

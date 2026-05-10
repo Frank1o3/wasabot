@@ -3,15 +3,15 @@ Voice transcription service using Groq Whisper.
 
 🐍 PYTHON NATIVE: Groq SDK for STT, async file handling
 """
+
 from __future__ import annotations
 
 import io
-from typing import Any
 
 from groq import Groq
 
 from wasabot.config import get_settings
-from wasabot.services.logger import get_logger, get_correlation_id
+from wasabot.services.logger import get_correlation_id, get_logger
 
 logger = get_logger(__name__)
 
@@ -27,10 +27,10 @@ class VoiceService:
     async def transcribe_audio(self, audio_data: bytes) -> str | None:
         """
         Transcribe audio data to text.
-        
+
         Args:
             audio_data: Raw audio bytes (OGG/OPUS format from WhatsApp)
-        
+
         Returns:
             Transcribed text or None on failure
         """
@@ -58,18 +58,18 @@ class VoiceService:
 
         except Exception as e:
             logger.error(
-                f"voice_transcription_failed | error={str(e)}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                f"voice_transcription_failed | error={e!s}",
+                extra={"meta": {"correlation_id": correlation_id}},
             )
             return None
 
     async def transcribe_audio_file(self, file_path: str) -> str | None:
         """
         Transcribe audio from a file path.
-        
+
         Args:
             file_path: Path to audio file
-        
+
         Returns:
             Transcribed text or None on failure
         """
@@ -78,19 +78,19 @@ class VoiceService:
         try:
             with open(file_path, "rb") as f:
                 audio_data = f.read()
-            
+
             return await self.transcribe_audio(audio_data)
 
         except FileNotFoundError:
             logger.error(
                 f"voice_file_not_found | path={file_path}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                extra={"meta": {"correlation_id": correlation_id}},
             )
             return None
         except Exception as e:
             logger.error(
-                f"voice_transcription_failed | error={str(e)}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                f"voice_transcription_failed | error={e!s}",
+                extra={"meta": {"correlation_id": correlation_id}},
             )
             return None
 

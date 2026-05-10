@@ -3,15 +3,15 @@ Structured JSON logging with correlation ID support.
 
 🐍 PYTHON NATIVE: Custom logging.Handler outputs strict flat JSON format
 """
+
 from __future__ import annotations
 
+from contextvars import ContextVar
+from datetime import UTC, datetime
 import json
 import logging
-import threading
-import uuid
-from contextvars import ContextVar
-from datetime import datetime, timezone
 from typing import Any
+import uuid
 
 # 🐍 PYTHON NATIVE: ContextVar for async-safe correlation ID propagation
 _correlation_id: ContextVar[str | None] = ContextVar("correlation_id", default=None)
@@ -25,10 +25,10 @@ def get_correlation_id() -> str | None:
 def set_correlation_id(correlation_id: str | None = None) -> str:
     """
     Set correlation ID in current context.
-    
+
     Args:
         correlation_id: Optional ID to set. If None, generates new UUID.
-    
+
     Returns:
         The correlation ID that was set.
     """
@@ -41,7 +41,7 @@ def set_correlation_id(correlation_id: str | None = None) -> str:
 class JSONFormatter(logging.Formatter):
     """
     Custom formatter that outputs strict JSON log lines.
-    
+
     🐍 PYTHON NATIVE: Flat structure with no nested correlation_id
     """
 
@@ -65,7 +65,7 @@ class JSONFormatter(logging.Formatter):
             "level": level_str,
             "event": record.getMessage(),
             "correlation_id": get_correlation_id() or "",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "meta": {},
         }
 
@@ -91,10 +91,10 @@ class JSONHandler(logging.StreamHandler):
 def setup_logging(level: int = logging.INFO) -> logging.Logger:
     """
     Configure root logger with JSON handler.
-    
+
     Args:
         level: Minimum log level (default: INFO)
-    
+
     Returns:
         Configured logger instance
     """
@@ -114,10 +114,10 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
 def get_logger(name: str) -> logging.Logger:
     """
     Get a logger with the given name.
-    
+
     Args:
         name: Logger name (typically __name__)
-    
+
     Returns:
         Logger instance
     """
@@ -127,7 +127,7 @@ def get_logger(name: str) -> logging.Logger:
 class CorrelationContext:
     """
     Context manager for setting correlation ID within a scope.
-    
+
     🐍 PYTHON NATIVE: Context manager pattern for clean async task isolation
     """
 
