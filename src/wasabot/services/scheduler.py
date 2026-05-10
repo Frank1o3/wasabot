@@ -89,7 +89,6 @@ class TaskScheduler:
         wa_id = task["wa_id"]
         message = task["message"]
         correlation_id = task.get("correlation_id")
-        is_group = task.get("is_group", False)
         # 🎬 DELAYED VIDEO: New fields for video actions
         action = task.get("action", "send_message")
         video_url = task.get("video_url")
