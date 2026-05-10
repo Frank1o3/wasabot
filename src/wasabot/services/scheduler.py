@@ -93,6 +93,8 @@ class TaskScheduler:
         action = task.get("action", "send_message")
         video_url = task.get("video_url")
         caption = task.get("caption")
+        # 👤 HUMANITY FEATURE: Contextual reply support for scheduled tasks
+        reply_to_message_id = task.get("reply_to_message_id")
 
         # Set correlation ID for this task's context
         with CorrelationContext(correlation_id):
@@ -103,13 +105,22 @@ class TaskScheduler:
                 if action == "send_video":
                     # Send video task
                     if video_url:
-                        success = await self._whatsapp_client.send_video(wa_id, video_url, caption=caption)
+                        success = await self._whatsapp_client.send_video(
+                            wa_id,
+                            video_url,
+                            caption=caption,
+                            reply_to_message_id=reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                        )
                     else:
                         logger.error(f"scheduled_video_task_missing_url | task_id={task_id}")
                         success = False
                 else:
                     # Default: send text message
-                    success = await self._whatsapp_client.send_text(wa_id, message)
+                    success = await self._whatsapp_client.send_text(
+                        wa_id,
+                        message,
+                        reply_to_message_id=reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                    )
 
                 if success:
                     logger.info(f"scheduled_task_completed | task_id={task_id}")

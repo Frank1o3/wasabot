@@ -118,6 +118,7 @@ def _init_tables(pool: DatabasePool) -> None:
     )
 
     # Scheduled tasks table - extended with action, video_url, caption for delayed videos
+    # 👤 HUMANITY FEATURE: Added reply_to_message_id for contextual replies
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scheduled_tasks (
             task_id TEXT PRIMARY KEY,
@@ -128,10 +129,32 @@ def _init_tables(pool: DatabasePool) -> None:
             is_group INTEGER DEFAULT 0,
             action TEXT DEFAULT 'send_message',
             video_url TEXT,
-            caption TEXT
+            caption TEXT,
+            reply_to_message_id TEXT
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_execute_at ON scheduled_tasks(execute_at)")
+    
+    # 🎬 DELAYED VIDEO + 👤 HUMANITY FEATURE: Add new columns to existing tables if they don't exist
+    try:
+        cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN action TEXT DEFAULT 'send_message'")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN video_url TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN caption TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN reply_to_message_id TEXT")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
 
     conn.commit()
     logger.info("database_tables_initialized")
@@ -328,9 +351,9 @@ def get_due_tasks(current_time: int | None = None) -> list[dict[str, Any]]:
     conn = pool.connection
     cursor = conn.cursor()
 
-    # 🎬 DELAYED VIDEO: Include action, video_url, caption in task retrieval
+    # 🎬 DELAYED VIDEO + 👤 HUMANITY FEATURE: Include action, video_url, caption, reply_to_message_id in task retrieval
     cursor.execute("""
-        SELECT task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption
+        SELECT task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption, reply_to_message_id
         FROM scheduled_tasks
         WHERE execute_at <= ?
         ORDER BY execute_at ASC
