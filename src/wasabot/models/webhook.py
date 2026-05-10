@@ -80,6 +80,57 @@ class AudioContent(BaseModel):
 
 
 # ──────────────────────────────────────────────────────────────
+# 🚀 FUTURE CAPABILITY: New message type models (stubs)
+# ──────────────────────────────────────────────────────────────
+
+
+class StickerContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Sticker message content."""
+    
+    mime_type: str  # "image/webp"
+    sha256: str
+    id: str
+    url: str | None = None
+    animated: bool | None = None
+
+
+class ReactionContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Reaction message content."""
+    
+    message_id: str  # ID of message being reacted to
+    emoji: str | None = None  # Unicode emoji, None if reaction removed
+
+
+class EditContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Edited message content."""
+    
+    original_message_id: str
+    message: dict[str, Any]  # Full edited message payload
+
+
+class StickerMessageContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Sticker message wrapper."""
+    
+    type: Literal["sticker"]
+    sticker: StickerContent
+    referral: Referral | None = None
+
+
+class ReactionMessageContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Reaction message wrapper."""
+    
+    type: Literal["reaction"]
+    reaction: ReactionContent
+
+
+class EditMessageContent(BaseModel):
+    """🚀 FUTURE CAPABILITY: Edit message wrapper."""
+    
+    type: Literal["edit"]
+    edit: EditContent
+
+
+# ──────────────────────────────────────────────────────────────
 # DISCRIMINATOR FUNCTION (FIXED: proper type hints)
 # ──────────────────────────────────────────────────────────────
 
@@ -157,6 +208,10 @@ class Message(BaseModel):
     # Type-specific payload fields (flat for easier access)
     text: TextContent | None = None
     audio: AudioContent | None = None
+    # 🚀 FUTURE CAPABILITY: Fields for new message types
+    sticker: StickerContent | None = None
+    reaction: ReactionContent | None = None
+    edit: EditContent | None = None
     context: MessageContext | None = None
     referral: Referral | None = None
 
@@ -180,6 +235,22 @@ class Message(BaseModel):
     @property
     def is_group_message(self) -> bool:
         return self.group_id is not None
+
+    # 🚀 FUTURE CAPABILITY: Helper properties for new message types
+    @property
+    def is_sticker(self) -> bool:
+        """Check if this is a sticker message."""
+        return self.type == "sticker" and self.sticker is not None
+
+    @property
+    def is_reaction(self) -> bool:
+        """Check if this is a reaction message."""
+        return self.type == "reaction" and self.reaction is not None
+
+    @property
+    def is_edit(self) -> bool:
+        """Check if this is an edited message."""
+        return self.type == "edit" and self.edit is not None
 
 
 # ──────────────────────────────────────────────────────────────

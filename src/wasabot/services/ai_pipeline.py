@@ -26,6 +26,11 @@ from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
 
+# 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
+RICKROLL_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+# Default caption for delayed videos
+DELAYED_VIDEO_CAPTION = "👀 aquí está lo que pediste"
+
 
 class AIPipelineResult:
     """Result of AI pipeline processing."""
@@ -35,12 +40,17 @@ class AIPipelineResult:
         reply: str,
         send_video: bool = False,
         video_url: str | None = None,
+        send_delayed_video: bool = False,
+        delayed_video_url: str | None = None,
         schedule_delay_seconds: int | None = None,
         scheduled_message: str | None = None,
     ) -> None:
         self.reply = reply
         self.send_video = send_video
         self.video_url = video_url
+        # 🎬 DELAYED VIDEO: New fields for delayed video support
+        self.send_delayed_video = send_delayed_video
+        self.delayed_video_url = delayed_video_url
         self.schedule_delay_seconds = schedule_delay_seconds
         self.scheduled_message = scheduled_message
 
@@ -144,15 +154,35 @@ class AIPipeline:
                     notes=updated_profile.get("notes"),
                 )
 
-            # Step 9: Schedule task if marker present
+            # Step 9: Schedule tasks if markers present
             task_id = None
-            if marker_result.schedule_delay_seconds is not None:
+            
+            # 🎬 DELAYED VIDEO: Handle delayed video scheduling (30-60 seconds random)
+            if marker_result.send_delayed_video:
+                import random
                 task_id = str(uuid.uuid4())
-                execute_at = int(
-                    correlation_id  # type: ignore[assignment]
-                ) if False else 0  # Placeholder - will be calculated properly
+                delay_seconds = random.randint(30, 60)  # Random delay between 30-60 seconds
+                execute_at = calculate_execute_at(delay_seconds)
                 
-                from wasabot.services.markers import calculate_execute_at
+                # Use the video URL from marker or default to Rickroll
+                video_url = marker_result.delayed_video_url or RICKROLL_URL
+                
+                add_task(
+                    task_id=task_id,
+                    wa_id=wa_id,
+                    message="",  # Empty message for video tasks
+                    execute_at=execute_at,
+                    correlation_id=correlation_id,
+                    is_group=is_group,
+                    action="send_video",
+                    video_url=video_url,
+                    caption=DELAYED_VIDEO_CAPTION,
+                )
+                logger.info(f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}")
+            
+            # Regular scheduled message
+            elif marker_result.schedule_delay_seconds is not None:
+                task_id = str(uuid.uuid4())
                 execute_at = calculate_execute_at(marker_result.schedule_delay_seconds)
                 
                 add_task(
@@ -167,7 +197,7 @@ class AIPipeline:
 
             # Step 10: Log result
             logger.info(
-                f"ai_pipeline_completed | send_video={marker_result.send_video} | scheduled={task_id is not None}",
+                f"ai_pipeline_completed | send_video={marker_result.send_video} | send_delayed_video={marker_result.send_delayed_video} | scheduled={task_id is not None}",
                 extra={"meta": {"correlation_id": correlation_id}}
             )
 
@@ -175,6 +205,8 @@ class AIPipeline:
                 reply=clean_reply,
                 send_video=marker_result.send_video,
                 video_url=marker_result.video_url,
+                send_delayed_video=marker_result.send_delayed_video,
+                delayed_video_url=marker_result.delayed_video_url,
                 schedule_delay_seconds=marker_result.schedule_delay_seconds,
                 scheduled_message=marker_result.scheduled_message,
             )
