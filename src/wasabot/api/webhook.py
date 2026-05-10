@@ -39,37 +39,37 @@ async def webhook_get(request: Request) -> PlainTextResponse:
     WhatsApp/Meta webhook verification endpoint.
     Handles GET requests with hub.mode, hub.challenge, hub.verify_token params.
     """
+    from wasabot.config import get_settings
+    
     params = dict(request.query_params)
     mode = params.get("hub.mode") or params.get("hub_mode")
     challenge = params.get("hub.challenge") or params.get("hub_challenge")
     verify_token = params.get("hub.verify_token") or params.get("hub_verify_token")
 
-    wa_verify_token = os.getenv("WA_VERIFY_TOKEN")
+    settings = get_settings()
+    wa_verify_token = settings.wa_verify_token
 
     # Validate required params
     if not mode or not challenge or not verify_token:
-        print("[WEBHOOK] ❌ missing required verification params")
+        logger.warning("webhook_verification_missing_params")
         return PlainTextResponse(content="Missing parameters", status_code=400)
 
     # Only "subscribe" is valid for verification
     if mode != "subscribe":
-        print(f"[WEBHOOK] ⚠️ invalid mode: {mode}")
+        logger.warning(f"webhook_verification_invalid_mode | mode={mode}")
         return PlainTextResponse(content="Invalid mode", status_code=400)
 
     # Constant-time token comparison (prevents timing attacks)
     if wa_verify_token and secrets.compare_digest(verify_token, wa_verify_token):
-        print("[WEBHOOK] ✅ webhook_verified_success")
+        logger.info("webhook_verified_success")
         return PlainTextResponse(content=challenge, status_code=200)
 
     # Failed verification - minimal logging in prod
-    if os.getenv("ENVIRONMENT", "production") == "development":
-        print(
-            f"[WEBHOOK] ⚠️ verification_failed | "
-            f"received={(verify_token or '')[:4]}... | "
-            f"expected={(wa_verify_token or '')[:4]}..."
-        )
-    else:
-        print("[WEBHOOK] ⚠️ verification_failed")
+    logger.warning(
+        f"webhook_verification_failed | "
+        f"received={(verify_token or '')[:4]}... | "
+        f"expected={(wa_verify_token or '')[:4] if wa_verify_token else 'NOT_SET'}..."
+    )
 
     return PlainTextResponse(content="Verification failed", status_code=403)
 
