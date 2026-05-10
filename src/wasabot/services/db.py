@@ -216,6 +216,10 @@ def add_conversation(wa_id: str, role: str, content: str) -> None:
     conn = pool.connection
     cursor = conn.cursor()
 
+    # Ensure profile exists first (foreign key requirement)
+    if not profile_exists(wa_id):
+        save_profile(wa_id=wa_id)
+
     timestamp = int(datetime.now(timezone.utc).timestamp())
 
     cursor.execute("""
