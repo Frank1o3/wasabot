@@ -3,16 +3,19 @@
 WhatsApp webhook handler with AI pipeline integration.
 
 🐍 PYTHON NATIVE: FastAPI BackgroundTasks for async processing, 3-second response guarantee
+👤 HUMANITY FEATURE: Typing indicators, contextual replies, read receipts
 """
 import os
+import random
+import secrets
 import uuid
 from pathlib import Path
-import secrets
 
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 
 from wasabot.analyzer import analyze_payload_safe, get_message_summary
+from wasabot.config import get_settings
 from wasabot.services.logger import (
     setup_logging,
     set_correlation_id,
@@ -20,6 +23,7 @@ from wasabot.services.logger import (
     get_logger,
 )
 from wasabot.services.db import save_profile
+from wasabot.services.typing import mark_message_read
 from wasabot.services.whatsapp_api import get_whatsapp_client
 from wasabot.services.voice import get_voice_service
 from wasabot.services.ai_pipeline import process_user_message, AIPipelineResult
@@ -84,11 +88,14 @@ async def _process_text_message(
     message_body: str,
     correlation_id: str,
     is_group: bool = False,
+    incoming_message_id: str | None = None,
 ) -> None:
     """
     Process a text message through the AI pipeline.
     
     This runs in the background to ensure webhook responds within 3 seconds.
+    
+    👤 HUMANITY FEATURE: Shows typing indicator, marks message as read, sends contextual reply
     """
     with CorrelationContext(correlation_id):
         try:
@@ -98,25 +105,58 @@ async def _process_text_message(
             save_profile(wa_id=wa_id)
 
             # Process through AI pipeline
-            result = await process_user_message(wa_id, message_body, is_group)
+            result = await process_user_message(wa_id, message_body, is_group, incoming_message_id)
 
             if result is None:
-                logger.error("ai_pipeline_returned_none | wa_id={wa_id}")
+                logger.error(f"ai_pipeline_returned_none | wa_id={wa_id}")
                 return
 
             # Send reply via WhatsApp API
             whatsapp_client = get_whatsapp_client()
             
-            # Send text reply
-            await whatsapp_client.send_text(wa_id, result.reply)
+            # 👤 HUMANITY FEATURE: Calculate typing delay based on reply length
+            # 25 chars/sec, capped at 15s, with ±10% jitter for human feel
+            reply_length = len(result.reply)
+            base_delay_ms = min(reply_length / 25 * 1000, 15000)
+            jitter = random.uniform(-0.1, 0.1) * base_delay_ms
+            typing_delay_ms = max(base_delay_ms + jitter, 1000)  # Minimum 1s
+            
+            # Safety cap: if AI generation already took >8s, cap delay at 3s
+            # (We can't measure exact AI time here, so we just cap total delay)
+            typing_delay_ms = min(typing_delay_ms, 15000)
+            typing_delay_seconds = typing_delay_ms / 1000
+            
+            # 👤 HUMANITY FEATURE: Send typing indicator (fire-and-forget)
+            if incoming_message_id:
+                settings = get_settings()
+                asyncio.create_task(send_typing_indicator(
+                    settings.wa_phone_number_id,
+                    settings.wa_access_token,
+                    incoming_message_id,
+                ))
+                
+                # Wait for typing delay before sending reply
+                await asyncio.sleep(typing_delay_seconds)
+            
+            # Send text reply with contextual reference
+            await whatsapp_client.send_text(
+                wa_id,
+                result.reply,
+                reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+            )
 
-            # Send video if marker was present
+            # Send video if marker was present (immediate, not delayed)
             if result.send_video:
                 video_url = result.video_url
                 if video_url:
-                    await whatsapp_client.send_video(wa_id, video_url, caption=result.reply)
+                    await whatsapp_client.send_video(
+                        wa_id,
+                        video_url,
+                        caption=result.reply,
+                        reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                    )
                 else:
-                    logger.warning("video_marker_without_url | wa_id={wa_id}")
+                    logger.warning(f"video_marker_without_url | wa_id={wa_id}")
 
             logger.info(f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}")
 
@@ -224,6 +264,8 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
     
     🐍 PYTHON NATIVE: Uses FastAPI BackgroundTasks to ensure <3s response time
     while heavy processing happens asynchronously.
+    
+    👤 HUMANITY FEATURE: Marks messages as read immediately, passes message ID for contextual replies
     """
     # Generate correlation ID for this webhook
     correlation_id = set_correlation_id()
@@ -250,16 +292,27 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
             user_id = msg.from_
             body = msg.text.body if msg.text else ""
             is_group = msg.is_group_message
+            # 👤 HUMANITY FEATURE: Extract message ID for contextual replies and read receipts
+            message_id = msg.id
             
             logger.info(f"text_message_queued | from={user_id} | body='{body[:50]}...'")
             
-            # Offload to background task
+            # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
+            settings = get_settings()
+            asyncio.create_task(mark_message_read(
+                settings.wa_phone_number_id,
+                settings.wa_access_token,
+                message_id,
+            ))
+            
+            # Offload to background task with message ID for contextual replies
             background_tasks.add_task(
                 _process_text_message,
                 user_id,
                 body,
                 correlation_id,
                 is_group,
+                message_id,  # 👤 HUMANITY FEATURE: Pass message ID for contextual reply
             )
             messages_processed += 1
 
@@ -269,8 +322,18 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
                 user_id = msg.from_
                 media_url = msg.audio.url
                 is_group = msg.is_group_message
+                # 👤 HUMANITY FEATURE: Extract message ID for read receipts
+                message_id = msg.id
                 
                 logger.info(f"voice_message_queued | from={user_id} | media_id={msg.audio.id}")
+                
+                # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
+                settings = get_settings()
+                asyncio.create_task(mark_message_read(
+                    settings.wa_phone_number_id,
+                    settings.wa_access_token,
+                    message_id,
+                ))
                 
                 # Offload to background task
                 background_tasks.add_task(

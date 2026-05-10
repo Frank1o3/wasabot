@@ -2,9 +2,12 @@
 AI pipeline orchestrating prompt building, Groq LLM, markers, and database.
 
 🐍 PYTHON NATIVE: Async orchestration with explicit type hints and structured error handling
+👤 HUMANITY FEATURE: Typing indicators, contextual replies, read receipts
 """
 from __future__ import annotations
 
+import asyncio
+import random
 import uuid
 from typing import Any
 
@@ -22,6 +25,7 @@ from wasabot.services.db import (
 from wasabot.services.logger import get_logger, get_correlation_id
 from wasabot.services.markers import MarkerResult, extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
+from wasabot.services.typing import send_typing_indicator, mark_message_read
 from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
@@ -79,6 +83,7 @@ class AIPipeline:
         wa_id: str,
         user_message: str,
         is_group: bool = False,
+        incoming_message_id: str | None = None,
     ) -> AIPipelineResult | None:
         """
         Process a user message through the full AI pipeline.
@@ -87,6 +92,7 @@ class AIPipeline:
             wa_id: User's WhatsApp ID
             user_message: The message text from user
             is_group: Whether this is a group conversation
+            incoming_message_id: 👤 HUMANITY FEATURE: Message ID for contextual replies
         
         Returns:
             AIPipelineResult with reply and actions, or None on failure
@@ -159,10 +165,12 @@ class AIPipeline:
             
             # 🎬 DELAYED VIDEO: Handle delayed video scheduling (30-60 seconds random)
             if marker_result.send_delayed_video:
-                import random
                 task_id = str(uuid.uuid4())
                 delay_seconds = random.randint(30, 60)  # Random delay between 30-60 seconds
-                execute_at = calculate_execute_at(delay_seconds)
+                execute_at = int(asyncio.get_event_loop().time()) + delay_seconds
+                # Use Unix timestamp instead
+                import time
+                execute_at = int(time.time()) + delay_seconds
                 
                 # Use the video URL from marker or default to Rickroll
                 video_url = marker_result.delayed_video_url or RICKROLL_URL
@@ -177,13 +185,16 @@ class AIPipeline:
                     action="send_video",
                     video_url=video_url,
                     caption=DELAYED_VIDEO_CAPTION,
+                    # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply when video is sent
+                    reply_to_message_id=incoming_message_id,
                 )
                 logger.info(f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}")
             
             # Regular scheduled message
             elif marker_result.schedule_delay_seconds is not None:
                 task_id = str(uuid.uuid4())
-                execute_at = calculate_execute_at(marker_result.schedule_delay_seconds)
+                import time
+                execute_at = int(time.time()) + marker_result.schedule_delay_seconds
                 
                 add_task(
                     task_id=task_id,
@@ -192,6 +203,8 @@ class AIPipeline:
                     execute_at=execute_at,
                     correlation_id=correlation_id,
                     is_group=is_group,
+                    # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply
+                    reply_to_message_id=incoming_message_id,
                 )
                 logger.info(f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s")
 
@@ -240,6 +253,7 @@ async def process_user_message(
     wa_id: str,
     user_message: str,
     is_group: bool = False,
+    incoming_message_id: str | None = None,
 ) -> AIPipelineResult | None:
     """
     Convenience function to process a message through the AI pipeline.
@@ -250,9 +264,10 @@ async def process_user_message(
         wa_id: User's WhatsApp ID
         user_message: The message text
         is_group: Whether this is a group conversation
+        incoming_message_id: 👤 HUMANITY FEATURE: Message ID for contextual replies
     
     Returns:
         AIPipelineResult or None on failure
     """
     pipeline = get_ai_pipeline()
-    return await pipeline.process_message(wa_id, user_message, is_group)
+    return await pipeline.process_message(wa_id, user_message, is_group, incoming_message_id)

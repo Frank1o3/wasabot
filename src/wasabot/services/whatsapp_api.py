@@ -118,13 +118,19 @@ class WhatsAppAPIClient:
             )
             return None
 
-    async def send_text(self, wa_id: str, text: str) -> bool:
+    async def send_text(
+        self,
+        wa_id: str,
+        text: str,
+        reply_to_message_id: str | None = None,
+    ) -> bool:
         """
         Send a text message.
         
         Args:
             wa_id: Recipient WhatsApp ID
             text: Message text
+            reply_to_message_id: Optional message ID to reply to (contextual reply)
         
         Returns:
             True if sent successfully, False otherwise
@@ -136,11 +142,15 @@ class WhatsAppAPIClient:
             "type": "text",
             "text": {"body": text},
         }
+        
+        # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
+        if reply_to_message_id:
+            payload["context"] = {"message_id": reply_to_message_id}
 
         result = await self._request_with_retry("POST", endpoint, payload)
         
         if result:
-            logger.info(f"whatsapp_text_sent | wa_id={wa_id}")
+            logger.info(f"whatsapp_text_sent | wa_id={wa_id}" + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else ""))
             return True
         else:
             logger.error(f"whatsapp_text_failed | wa_id={wa_id}")
@@ -151,6 +161,7 @@ class WhatsAppAPIClient:
         wa_id: str,
         video_url: str,
         caption: str | None = None,
+        reply_to_message_id: str | None = None,
     ) -> bool:
         """
         Send a video message.
@@ -159,6 +170,7 @@ class WhatsAppAPIClient:
             wa_id: Recipient WhatsApp ID
             video_url: URL of the video to send
             caption: Optional caption text
+            reply_to_message_id: Optional message ID to reply to (contextual reply)
         
         Returns:
             True if sent successfully, False otherwise
@@ -175,11 +187,15 @@ class WhatsAppAPIClient:
         
         if caption:
             payload["video"]["caption"] = caption
+        
+        # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
+        if reply_to_message_id:
+            payload["context"] = {"message_id": reply_to_message_id}
 
         result = await self._request_with_retry("POST", endpoint, payload)
         
         if result:
-            logger.info(f"whatsapp_video_sent | wa_id={wa_id} | url={video_url[:50]}...")
+            logger.info(f"whatsapp_video_sent | wa_id={wa_id} | url={video_url[:50]}..." + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else ""))
             return True
         else:
             logger.error(f"whatsapp_video_failed | wa_id={wa_id}")
