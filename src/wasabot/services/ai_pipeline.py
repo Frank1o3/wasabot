@@ -25,8 +25,6 @@ from wasabot.services.db import (
 from wasabot.services.logger import get_correlation_id, get_logger
 from wasabot.services.markers import extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
-from wasabot.services.typing import send_typing_indicator, mark_message_read
-from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
 
@@ -172,6 +170,7 @@ class AIPipeline:
                 execute_at = int(asyncio.get_event_loop().time()) + delay_seconds
                 # Use Unix timestamp instead
                 import time
+
                 execute_at = int(time.time()) + delay_seconds
 
                 # Use the video URL from marker or default to Rickroll
@@ -190,7 +189,9 @@ class AIPipeline:
                     # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply when video is sent
                     reply_to_message_id=incoming_message_id,
                 )
-                logger.info(f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}")
+                logger.info(
+                    f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}"
+                )
 
             # Regular scheduled message
             elif marker_result.schedule_delay_seconds is not None:
@@ -198,6 +199,7 @@ class AIPipeline:
                 execute_at = calculate_execute_at(marker_result.schedule_delay_seconds)
 
                 import time
+
                 execute_at = int(time.time()) + marker_result.schedule_delay_seconds
 
                 add_task(
@@ -210,12 +212,14 @@ class AIPipeline:
                     # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply
                     reply_to_message_id=incoming_message_id,
                 )
-                logger.info(f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s")
+                logger.info(
+                    f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s"
+                )
 
             # Step 10: Log result
             logger.info(
                 f"ai_pipeline_completed | send_video={marker_result.send_video} | send_delayed_video={marker_result.send_delayed_video} | scheduled={task_id is not None}",
-                extra={"meta": {"correlation_id": correlation_id}}
+                extra={"meta": {"correlation_id": correlation_id}},
             )
 
             return AIPipelineResult(

@@ -3,6 +3,7 @@ Marker extraction from AI responses using regex.
 
 🐍 PYTHON NATIVE: Compiled regex patterns for performance, dataclass for structured results
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,7 +18,6 @@ class MarkerResult:
     # Video markers
     send_video: bool = False
     video_url: str | None = None
-
 
     # 🎬 DELAYED VIDEO: New delayed video marker support
     send_delayed_video: bool = False
@@ -36,8 +36,7 @@ VIDEO_RE = re.compile(r"<send\s+vid(?:eo)?\s*(?:([^\s>]+))?>", re.IGNORECASE)
 # 🎬 DELAYED VIDEO: New regex for delayed video scheduling (30-60 seconds)
 DELAYED_VIDEO_RE = re.compile(r"<send\s+vid(?:eo)?\s+delayed\s*(?:([^\s>]+))?>", re.IGNORECASE)
 SCHEDULE_RE = re.compile(
-    r"<message\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours|min|h|m|s|seg)>",
-    re.IGNORECASE
+    r"<message\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours|min|h|m|s|seg)>", re.IGNORECASE
 )
 
 
@@ -85,7 +84,6 @@ def extract_markers(text: str) -> MarkerResult:
             result.video_url = url.strip()
         # Remove the marker from cleaned text
         result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
-
 
     # 🎬 DELAYED VIDEO: Check for delayed video marker FIRST (more specific)
     delayed_video_match = DELAYED_VIDEO_RE.search(text)

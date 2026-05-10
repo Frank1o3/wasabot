@@ -86,7 +86,7 @@ class AudioContent(BaseModel):
 
 class StickerContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Sticker message content."""
-    
+
     mime_type: str  # "image/webp"
     sha256: str
     id: str
@@ -96,21 +96,21 @@ class StickerContent(BaseModel):
 
 class ReactionContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Reaction message content."""
-    
+
     message_id: str  # ID of message being reacted to
     emoji: str | None = None  # Unicode emoji, None if reaction removed
 
 
 class EditContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Edited message content."""
-    
+
     original_message_id: str
     message: dict[str, Any]  # Full edited message payload
 
 
 class StickerMessageContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Sticker message wrapper."""
-    
+
     type: Literal["sticker"]
     sticker: StickerContent
     referral: Referral | None = None
@@ -118,14 +118,14 @@ class StickerMessageContent(BaseModel):
 
 class ReactionMessageContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Reaction message wrapper."""
-    
+
     type: Literal["reaction"]
     reaction: ReactionContent
 
 
 class EditMessageContent(BaseModel):
     """🚀 FUTURE CAPABILITY: Edit message wrapper."""
-    
+
     type: Literal["edit"]
     edit: EditContent
 

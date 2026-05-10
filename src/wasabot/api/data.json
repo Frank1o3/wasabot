@@ -1,1 +1,0 @@
-{'object': 'whatsapp_business_account', 'entry': [{'id': '123456789', 'changes': [{'value': {'messaging_product': 'whatsapp', 'metadata': {'phone_number_id': '987654321'}, 'contacts': [{'wa_id': '1234567890'}], 'messages': [{'from': '1234567890', 'id': 'msg_001', 'timestamp': '1234567890', 'type': 'text', 'text': {'body': 'Hola bot!'}}]}, 'field': 'messages'}]}]}

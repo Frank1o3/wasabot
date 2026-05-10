@@ -3,6 +3,7 @@ System prompt builder for AI responses.
 
 🐍 PYTHON NATIVE: Clean string formatting with f-strings instead of template literals
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -15,12 +16,12 @@ def build_system_prompt(
 ) -> str:
     """
     Build the system prompt for Groq LLM.
-    
+
     Args:
         profile: User profile dict (or None for new users)
         current_msg: The current user message
         is_group: Whether this is a group conversation
-    
+
     Returns:
         Complete system prompt string
     """
@@ -82,13 +83,19 @@ IMPORTANTE: Los marcadores se eliminan automáticamente antes de enviar. Úsalos
                 context_parts.append(f"Temas de interés: {topics_str}")
 
         if profile.get("notes"):
-            context_parts.append(f"Notas: {profile['notes'][:100]}...") if len(profile.get("notes", "")) > 100 else context_parts.append(f"Notas: {profile['notes']}")
+            context_parts.append(f"Notas: {profile['notes'][:100]}...") if len(
+                profile.get("notes", "")
+            ) > 100 else context_parts.append(f"Notas: {profile['notes']}")
 
         if context_parts:
             base_prompt += "\n\nContexto del usuario:\n" + "\n".join(context_parts)
 
     # Add conversation history context hint
-    base_prompt += f"\n\nMensaje actual del usuario: \"{current_msg[:500]}\"" if len(current_msg) > 500 else f"\n\nMensaje actual del usuario: \"{current_msg}\""
+    base_prompt += (
+        f'\n\nMensaje actual del usuario: "{current_msg[:500]}"'
+        if len(current_msg) > 500
+        else f'\n\nMensaje actual del usuario: "{current_msg}"'
+    )
 
     return base_prompt
 
@@ -96,7 +103,7 @@ IMPORTANTE: Los marcadores se eliminan automáticamente antes de enviar. Úsalos
 def extract_name_from_message(message: str) -> str | None:
     """
     Attempt to extract a name from a user message.
-    
+
     🐍 PYTHON NATIVE: Simple regex-based extraction instead of complex parsing
     """
     import re
@@ -123,7 +130,7 @@ def update_profile_with_context(
 ) -> dict[str, Any] | None:
     """
     Extract potential profile updates from conversation.
-    
+
     Returns updated profile dict or None if no changes.
     """
     if profile is None:

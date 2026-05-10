@@ -152,7 +152,10 @@ class WhatsAppAPIClient:
         result = await self._request_with_retry("POST", endpoint, payload)
 
         if result:
-            logger.info(f"whatsapp_text_sent | wa_id={wa_id}" + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else ""))
+            logger.info(
+                f"whatsapp_text_sent | wa_id={wa_id}"
+                + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else "")
+            )
             return True
         else:
             logger.error(f"whatsapp_text_failed | wa_id={wa_id}")
@@ -200,7 +203,10 @@ class WhatsAppAPIClient:
         result = await self._request_with_retry("POST", endpoint, payload)
 
         if result:
-            logger.info(f"whatsapp_video_sent | wa_id={wa_id} | url={video_url[:50]}..." + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else ""))
+            logger.info(
+                f"whatsapp_video_sent | wa_id={wa_id} | url={video_url[:50]}..."
+                + (f" | reply_to={reply_to_message_id}" if reply_to_message_id else "")
+            )
             return True
         else:
             logger.error(f"whatsapp_video_failed | wa_id={wa_id}")

@@ -134,23 +134,23 @@ def _init_tables(pool: DatabasePool) -> None:
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_execute_at ON scheduled_tasks(execute_at)")
-    
+
     # 🎬 DELAYED VIDEO + 👤 HUMANITY FEATURE: Add new columns to existing tables if they don't exist
     try:
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN action TEXT DEFAULT 'send_message'")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
     try:
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN video_url TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
     try:
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN caption TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
     try:
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN reply_to_message_id TEXT")
     except sqlite3.OperationalError:
@@ -333,10 +333,23 @@ def add_task(
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (task_id, wa_id, message, execute_at, correlation_id, 1 if is_group else 0, action, video_url, caption))
+    """,
+        (
+            task_id,
+            wa_id,
+            message,
+            execute_at,
+            correlation_id,
+            1 if is_group else 0,
+            action,
+            video_url,
+            caption,
+        ),
+    )
 
     conn.commit()
     logger.info(f"task_scheduled | task_id={task_id} | execute_at={execute_at} | action={action}")
@@ -352,7 +365,8 @@ def get_due_tasks(current_time: int | None = None) -> list[dict[str, Any]]:
     cursor = conn.cursor()
 
     # 🎬 DELAYED VIDEO + 👤 HUMANITY FEATURE: Include action, video_url, caption, reply_to_message_id in task retrieval
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption, reply_to_message_id
         FROM scheduled_tasks
         WHERE execute_at <= ?

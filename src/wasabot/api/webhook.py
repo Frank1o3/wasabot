@@ -5,30 +5,27 @@ WhatsApp webhook handler with AI pipeline integration.
 🐍 PYTHON NATIVE: FastAPI BackgroundTasks for async processing, 3-second response guarantee
 👤 HUMANITY FEATURE: Typing indicators, contextual replies, read receipts
 """
-import os
+
 import random
 import secrets
-import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse
 
 from wasabot.analyzer import analyze_payload_safe, get_message_summary
 from wasabot.config import get_settings
+from wasabot.models.webhook import Message
+from wasabot.services.ai_pipeline import process_user_message
+from wasabot.services.db import save_profile
 from wasabot.services.logger import (
     CorrelationContext,
     get_logger,
     set_correlation_id,
     setup_logging,
 )
-from wasabot.services.db import save_profile
 from wasabot.services.typing import mark_message_read
-from wasabot.services.whatsapp_api import get_whatsapp_client
 from wasabot.services.voice import get_voice_service
-from wasabot.services.ai_pipeline import process_user_message, AIPipelineResult
-from wasabot.services.scheduler import start_scheduler
-from wasabot.models.webhook import Message
+from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
 
@@ -131,11 +128,13 @@ async def _process_text_message(
             # 👤 HUMANITY FEATURE: Send typing indicator (fire-and-forget)
             if incoming_message_id:
                 settings = get_settings()
-                asyncio.create_task(send_typing_indicator(
-                    settings.wa_phone_number_id,
-                    settings.wa_access_token,
-                    incoming_message_id,
-                ))
+                asyncio.create_task(
+                    send_typing_indicator(
+                        settings.wa_phone_number_id,
+                        settings.wa_access_token,
+                        incoming_message_id,
+                    )
+                )
 
                 # Wait for typing delay before sending reply
                 await asyncio.sleep(typing_delay_seconds)
@@ -160,7 +159,9 @@ async def _process_text_message(
                 else:
                     logger.warning(f"video_marker_without_url | wa_id={wa_id}")
 
-            logger.info(f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}")
+            logger.info(
+                f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}"
+            )
 
         except Exception as e:
             logger.error(f"text_message_processing_failed | error={e!s}")
@@ -223,7 +224,7 @@ async def _process_voice_message(
             logger.info(f"voice_message_completed | wa_id={wa_id}")
 
         except Exception as e:
-            logger.error(f"voice_message_processing_failed | error={str(e)}")
+            logger.error(f"voice_message_processing_failed | error={e!s}")
 
 
 # 🚀 FUTURE CAPABILITY: Stub handlers for new message types
@@ -235,7 +236,15 @@ async def _handle_sticker_message(msg: Message, correlation_id: str) -> None:
 
     TODO: Implement full sticker handling logic.
     """
-    logger.info("sticker_received", extra={"meta": {"correlation_id": correlation_id, "animated": msg.sticker.animated if msg.sticker else None}})
+    logger.info(
+        "sticker_received",
+        extra={
+            "meta": {
+                "correlation_id": correlation_id,
+                "animated": msg.sticker.animated if msg.sticker else None,
+            }
+        },
+    )
 
 
 async def _handle_reaction_message(msg: Message, correlation_id: str) -> None:
@@ -246,7 +255,16 @@ async def _handle_reaction_message(msg: Message, correlation_id: str) -> None:
     """
     emoji = msg.reaction.emoji if msg.reaction else "❌"
     target_msg_id = msg.reaction.message_id if msg.reaction else None
-    logger.info("reaction_received", extra={"meta": {"correlation_id": correlation_id, "emoji": emoji, "target_msg_id": target_msg_id}})
+    logger.info(
+        "reaction_received",
+        extra={
+            "meta": {
+                "correlation_id": correlation_id,
+                "emoji": emoji,
+                "target_msg_id": target_msg_id,
+            }
+        },
+    )
 
 
 async def _handle_edit_message(msg: Message, correlation_id: str) -> None:
@@ -256,7 +274,10 @@ async def _handle_edit_message(msg: Message, correlation_id: str) -> None:
     TODO: Implement full edit handling logic.
     """
     original_id = msg.edit.original_message_id if msg.edit else None
-    logger.info("message_edited", extra={"meta": {"correlation_id": correlation_id, "original_id": original_id}})
+    logger.info(
+        "message_edited",
+        extra={"meta": {"correlation_id": correlation_id, "original_id": original_id}},
+    )
 
 
 @router.post("/")
@@ -284,7 +305,9 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
 
         # Log summary
         summary = get_message_summary(payload)
-        logger.info(f"webhook_received | {summary}", extra={"meta": {"correlation_id": correlation_id}})
+        logger.info(
+            f"webhook_received | {summary}", extra={"meta": {"correlation_id": correlation_id}}
+        )
 
         # Process each message type
         messages_processed = 0
@@ -304,11 +327,13 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
 
             # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
             settings = get_settings()
-            asyncio.create_task(mark_message_read(
-                settings.wa_phone_number_id,
-                settings.wa_access_token,
-                message_id,
-            ))
+            asyncio.create_task(
+                mark_message_read(
+                    settings.wa_phone_number_id,
+                    settings.wa_access_token,
+                    message_id,
+                )
+            )
 
             # Offload to background task with message ID for contextual replies
             background_tasks.add_task(
@@ -333,14 +358,15 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
 
                 logger.info(f"voice_message_queued | from={user_id} | media_id={msg.audio.id}")
 
-
                 # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
                 settings = get_settings()
-                asyncio.create_task(mark_message_read(
-                    settings.wa_phone_number_id,
-                    settings.wa_access_token,
-                    message_id,
-                ))
+                asyncio.create_task(
+                    mark_message_read(
+                        settings.wa_phone_number_id,
+                        settings.wa_access_token,
+                        message_id,
+                    )
+                )
 
                 # Offload to background task
                 background_tasks.add_task(
@@ -382,9 +408,6 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
             else:
                 # Unknown message type - just log
                 logger.debug(f"unknown_message_type | from={user_id} | type={msg.type}")
-
-        # Save raw for debugging (optional)
-        temp_file.write_text(str(raw_payload))
 
         logger.info(f"webhook_processing_complete | messages_queued={messages_processed}")
 

@@ -3,6 +3,7 @@ Background scheduler using APScheduler for polling and executing scheduled tasks
 
 🐍 PYTHON NATIVE: APScheduler with asyncio integration, 5-second polling interval
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -21,7 +22,7 @@ logger = get_logger(__name__)
 class TaskScheduler:
     """
     Background task scheduler that polls SQLite for due tasks.
-    
+
     Runs every 5 seconds to check for and execute scheduled messages.
     """
 
@@ -80,7 +81,7 @@ class TaskScheduler:
     async def _execute_task(self, task: dict[str, Any]) -> None:
         """
         Execute a single scheduled task.
-        
+
         Args:
             task: Task dict from database
         """
@@ -99,7 +100,9 @@ class TaskScheduler:
         # Set correlation ID for this task's context
         with CorrelationContext(correlation_id):
             try:
-                logger.info(f"scheduled_task_executing | task_id={task_id} | wa_id={wa_id} | action={action}")
+                logger.info(
+                    f"scheduled_task_executing | task_id={task_id} | wa_id={wa_id} | action={action}"
+                )
 
                 # 🎬 DELAYED VIDEO: Handle different action types
                 if action == "send_video":
@@ -128,9 +131,7 @@ class TaskScheduler:
                     logger.error(f"scheduled_task_send_failed | task_id={task_id}")
 
             except Exception as e:
-                logger.error(
-                    f"scheduled_task_execution_failed | task_id={task_id} | error={e!s}"
-                )
+                logger.error(f"scheduled_task_execution_failed | task_id={task_id} | error={e!s}")
             finally:
                 # Always delete task after execution (success or failure)
                 # This prevents infinite loops on persistent failures

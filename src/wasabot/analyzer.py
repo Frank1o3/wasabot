@@ -53,6 +53,7 @@ def analyze_payload_safe(raw_payload: dict[str, Any]) -> WebhookPayload | None:
 # Helper functions for common extraction patterns
 # ──────────────────────────────────────────────────────────────
 
+
 def extract_text_messages(payload: WebhookPayload) -> list[tuple[str, str, str]]:
     """
     Extract all text messages as (sender_wa_id, message_body, timestamp) tuples.
@@ -88,14 +89,16 @@ def extract_voice_messages(payload: WebhookPayload) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for msg in payload.voice_messages:
         if msg.audio:
-            results.append({
-                "from": msg.from_,
-                "media_id": msg.audio.id,
-                "mime_type": msg.audio.mime_type,
-                "url": msg.audio.url,
-                "sha256": msg.audio.sha256,
-                "timestamp": msg.timestamp,
-            })
+            results.append(
+                {
+                    "from": msg.from_,
+                    "media_id": msg.audio.id,
+                    "mime_type": msg.audio.mime_type,
+                    "url": msg.audio.url,
+                    "sha256": msg.audio.sha256,
+                    "timestamp": msg.timestamp,
+                }
+            )
     return results
 
 
@@ -109,5 +112,7 @@ def get_message_summary(payload: WebhookPayload) -> dict[str, Any]:
         "total_messages": len(payload.all_messages),
         "text_count": len(payload.text_messages),
         "voice_count": len(payload.voice_messages),
-        "contacts": [c.wa_id for c in (payload.entry[0].changes[0].value.contacts or []) if c.wa_id] if payload.entry else [],
+        "contacts": [c.wa_id for c in (payload.entry[0].changes[0].value.contacts or []) if c.wa_id]
+        if payload.entry
+        else [],
     }
