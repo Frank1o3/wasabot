@@ -5,30 +5,26 @@ WhatsApp webhook handler with AI pipeline integration.
 🐍 PYTHON NATIVE: FastAPI BackgroundTasks for async processing, 3-second response guarantee
 """
 import os
-import uuid
-from pathlib import Path
 import secrets
 
-from fastapi import APIRouter, Request, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse
 
 from wasabot.analyzer import analyze_payload_safe, get_message_summary
+from wasabot.services.ai_pipeline import process_user_message
+from wasabot.services.db import save_profile
 from wasabot.services.logger import (
-    setup_logging,
-    set_correlation_id,
     CorrelationContext,
     get_logger,
+    set_correlation_id,
+    setup_logging,
 )
-from wasabot.services.db import save_profile
-from wasabot.services.whatsapp_api import get_whatsapp_client
 from wasabot.services.voice import get_voice_service
-from wasabot.services.ai_pipeline import process_user_message, AIPipelineResult
-from wasabot.services.scheduler import start_scheduler
+from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
-temp_file = Path(__file__).parent / "data.json"
 
 # Initialize logging on module load
 setup_logging()
@@ -86,7 +82,7 @@ async def _process_text_message(
 ) -> None:
     """
     Process a text message through the AI pipeline.
-    
+
     This runs in the background to ensure webhook responds within 3 seconds.
     """
     with CorrelationContext(correlation_id):
@@ -105,7 +101,7 @@ async def _process_text_message(
 
             # Send reply via WhatsApp API
             whatsapp_client = get_whatsapp_client()
-            
+
             # Send text reply
             await whatsapp_client.send_text(wa_id, result.reply)
 
@@ -120,7 +116,7 @@ async def _process_text_message(
             logger.info(f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}")
 
         except Exception as e:
-            logger.error(f"text_message_processing_failed | error={str(e)}")
+            logger.error(f"text_message_processing_failed | error={e!s}")
 
 
 async def _process_voice_message(
@@ -131,7 +127,7 @@ async def _process_voice_message(
 ) -> None:
     """
     Process a voice message: download → transcribe → AI pipeline.
-    
+
     This runs in the background to ensure webhook responds within 3 seconds.
     """
     with CorrelationContext(correlation_id):
@@ -180,20 +176,20 @@ async def _process_voice_message(
             logger.info(f"voice_message_completed | wa_id={wa_id}")
 
         except Exception as e:
-            logger.error(f"voice_message_processing_failed | error={str(e)}")
+            logger.error(f"voice_message_processing_failed | error={e!s}")
 
 
 @router.post("/")
 async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> PlainTextResponse:
     """
     WhatsApp webhook POST handler.
-    
+
     🐍 PYTHON NATIVE: Uses FastAPI BackgroundTasks to ensure <3s response time
     while heavy processing happens asynchronously.
     """
     # Generate correlation ID for this webhook
     correlation_id = set_correlation_id()
-    
+
     try:
         raw_payload = await request.json()
 
@@ -216,9 +212,9 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
             user_id = msg.from_
             body = msg.text.body if msg.text else ""
             is_group = msg.is_group_message
-            
+
             logger.info(f"text_message_queued | from={user_id} | body='{body[:50]}...'")
-            
+
             # Offload to background task
             background_tasks.add_task(
                 _process_text_message,
@@ -235,9 +231,9 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
                 user_id = msg.from_
                 media_url = msg.audio.url
                 is_group = msg.is_group_message
-                
+
                 logger.info(f"voice_message_queued | from={user_id} | media_id={msg.audio.id}")
-                
+
                 # Offload to background task
                 background_tasks.add_task(
                     _process_voice_message,
@@ -248,14 +244,11 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
                 )
                 messages_processed += 1
 
-        # Save raw for debugging (optional)
-        temp_file.write_text(str(raw_payload))
-
         logger.info(f"webhook_processing_complete | messages_queued={messages_processed}")
 
         # Return immediately - background tasks continue processing
         return PlainTextResponse(content="Event received", status_code=200)
 
     except Exception as e:
-        logger.error(f"webhook_handler_failed | error={str(e)}")
+        logger.error(f"webhook_handler_failed | error={e!s}")
         return PlainTextResponse(content="Internal error", status_code=500)

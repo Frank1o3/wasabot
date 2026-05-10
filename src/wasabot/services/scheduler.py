@@ -5,15 +5,14 @@ Background scheduler using APScheduler for polling and executing scheduled tasks
 """
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from wasabot.services.db import delete_task, get_due_tasks
-from wasabot.services.logger import get_logger, CorrelationContext
+from wasabot.services.logger import CorrelationContext, get_logger
 from wasabot.services.whatsapp_api import get_whatsapp_client
 
 logger = get_logger(__name__)
@@ -62,7 +61,7 @@ class TaskScheduler:
     async def _poll_and_execute(self) -> None:
         """Poll database for due tasks and execute them."""
         try:
-            current_time = int(datetime.now(timezone.utc).timestamp())
+            current_time = int(datetime.now(UTC).timestamp())
             due_tasks = get_due_tasks(current_time)
 
             if not due_tasks:
@@ -76,7 +75,7 @@ class TaskScheduler:
                 await self._execute_task(task)
 
         except Exception as e:
-            logger.error(f"scheduler_poll_failed | error={str(e)}")
+            logger.error(f"scheduler_poll_failed | error={e!s}")
 
     async def _execute_task(self, task: dict[str, Any]) -> None:
         """
@@ -106,7 +105,7 @@ class TaskScheduler:
 
             except Exception as e:
                 logger.error(
-                    f"scheduled_task_execution_failed | task_id={task_id} | error={str(e)}"
+                    f"scheduled_task_execution_failed | task_id={task_id} | error={e!s}"
                 )
             finally:
                 # Always delete task after execution (success or failure)

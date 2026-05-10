@@ -5,23 +5,23 @@ Marker extraction from AI responses using regex.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 import re
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
 
 
 @dataclass
 class MarkerResult:
     """Result of marker extraction."""
-    
+
     # Video markers
     send_video: bool = False
     video_url: str | None = None
-    
+
     # Schedule markers
     schedule_delay_seconds: int | None = None
     scheduled_message: str | None = None
-    
+
     # Cleaned text (markers removed)
     cleaned_text: str = ""
 
@@ -45,7 +45,7 @@ def parse_time_unit(unit: str) -> int:
         Number of seconds
     """
     unit_lower = unit.lower()
-    
+
     if unit_lower in ("second", "seconds", "s", "seg"):
         return 1
     elif unit_lower in ("minute", "minutes", "min", "m"):
@@ -68,7 +68,7 @@ def extract_markers(text: str) -> MarkerResult:
         MarkerResult with extracted data and cleaned text
     """
     result = MarkerResult(cleaned_text=text)
-    
+
     # Extract video marker
     video_match = VIDEO_RE.search(text)
     if video_match:
@@ -78,7 +78,7 @@ def extract_markers(text: str) -> MarkerResult:
             result.video_url = url.strip()
         # Remove the marker from cleaned text
         result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
-    
+
     # Extract schedule marker
     schedule_match = SCHEDULE_RE.search(text)
     if schedule_match:
@@ -91,10 +91,10 @@ def extract_markers(text: str) -> MarkerResult:
         result.scheduled_message = "¡Listo! Te envío un recordatorio."
         # Remove the marker from cleaned text
         result.cleaned_text = SCHEDULE_RE.sub("", result.cleaned_text).strip()
-    
+
     # Clean up multiple whitespace that may result from marker removal
     result.cleaned_text = re.sub(r"\s+", " ", result.cleaned_text).strip()
-    
+
     return result
 
 
@@ -108,7 +108,7 @@ def calculate_execute_at(delay_seconds: int) -> int:
     Returns:
         Unix timestamp (int)
     """
-    execute_time = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+    execute_time = datetime.now(UTC) + timedelta(seconds=delay_seconds)
     return int(execute_time.timestamp())
 
 

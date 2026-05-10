@@ -57,25 +57,25 @@ IMPORTANTE: Los marcadores se eliminan automáticamente antes de enviar. Úsalos
     # Add profile context if available
     if profile is not None:
         context_parts = []
-        
+
         if profile.get("name"):
             context_parts.append(f"Nombre: {profile['name']}")
-        
+
         if profile.get("traits"):
             traits = profile["traits"]
             if isinstance(traits, dict) and traits:
                 traits_str = ", ".join(f"{k}: {v}" for k, v in list(traits.items())[:5])
                 context_parts.append(f"Características: {traits_str}")
-        
+
         if profile.get("topics"):
             topics = profile["topics"]
             if isinstance(topics, list) and topics:
                 topics_str = ", ".join(topics[:5])
                 context_parts.append(f"Temas de interés: {topics_str}")
-        
+
         if profile.get("notes"):
             context_parts.append(f"Notas: {profile['notes'][:100]}...") if len(profile.get("notes", "")) > 100 else context_parts.append(f"Notas: {profile['notes']}")
-        
+
         if context_parts:
             base_prompt += "\n\nContexto del usuario:\n" + "\n".join(context_parts)
 
@@ -92,19 +92,19 @@ def extract_name_from_message(message: str) -> str | None:
     🐍 PYTHON NATIVE: Simple regex-based extraction instead of complex parsing
     """
     import re
-    
+
     # Pattern: "me llamo X", "soy X", "mi nombre es X"
     patterns = [
         r"(?:me llamo|yo soy|soy)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
         r"(?:mi nombre es)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
         r"([A-Z][a-z]+),\s*(?:mucho gusto|encantado|encantada)",
     ]
-    
+
     for pattern in patterns:
         match = re.search(pattern, message, re.IGNORECASE)
         if match:
             return match.group(1).strip()
-    
+
     return None
 
 
@@ -120,16 +120,16 @@ def update_profile_with_context(
     """
     if profile is None:
         profile = {}
-    
+
     updated = False
-    
+
     # Try to extract name if not present
     if not profile.get("name"):
         extracted_name = extract_name_from_message(user_message)
         if extracted_name:
             profile["name"] = extracted_name
             updated = True
-    
+
     # Could add more extraction logic here (topics, traits, etc.)
-    
+
     return profile if updated else None
