@@ -117,7 +117,7 @@ def _init_tables(pool: DatabasePool) -> None:
         "CREATE INDEX IF NOT EXISTS idx_conversations_timestamp ON conversations(timestamp)"
     )
 
-    # Scheduled tasks table
+    # Scheduled tasks table - extended with action, video_url, caption for delayed videos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS scheduled_tasks (
             task_id TEXT PRIMARY KEY,
@@ -125,7 +125,10 @@ def _init_tables(pool: DatabasePool) -> None:
             message TEXT NOT NULL,
             execute_at INTEGER NOT NULL,
             correlation_id TEXT,
-            is_group INTEGER DEFAULT 0
+            is_group INTEGER DEFAULT 0,
+            action TEXT DEFAULT 'send_message',
+            video_url TEXT,
+            caption TEXT
         )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_execute_at ON scheduled_tasks(execute_at)")
@@ -222,7 +225,11 @@ def add_conversation(wa_id: str, role: str, content: str) -> None:
     conn = pool.connection
     cursor = conn.cursor()
 
-    timestamp = int(datetime.now(UTC).timestamp())
+    # Ensure profile exists first (foreign key requirement)
+    if not profile_exists(wa_id):
+        save_profile(wa_id=wa_id)
+
+    timestamp = int(datetime.now(timezone.utc).timestamp())
 
     cursor.execute(
         """
@@ -281,22 +288,35 @@ def add_task(
     execute_at: int,
     correlation_id: str | None = None,
     is_group: bool = False,
+    action: str = "send_message",
+    video_url: str | None = None,
+    caption: str | None = None,
 ) -> None:
-    """Add a scheduled task."""
+    """
+    Add a scheduled task.
+
+    Args:
+        task_id: Unique task identifier
+        wa_id: Recipient WhatsApp ID
+        message: Message text (for send_message action)
+        execute_at: Unix timestamp for execution
+        correlation_id: Correlation ID for tracing
+        is_group: Whether this is a group message
+        action: Task action type ('send_message' or 'send_video')
+        video_url: URL of video to send (for send_video action)
+        caption: Caption for video (for send_video action)
+    """
     pool = get_db_pool()
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """,
-        (task_id, wa_id, message, execute_at, correlation_id, 1 if is_group else 0),
-    )
+    cursor.execute("""
+        INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (task_id, wa_id, message, execute_at, correlation_id, 1 if is_group else 0, action, video_url, caption))
 
     conn.commit()
-    logger.info(f"task_scheduled | task_id={task_id} | execute_at={execute_at}")
+    logger.info(f"task_scheduled | task_id={task_id} | execute_at={execute_at} | action={action}")
 
 
 def get_due_tasks(current_time: int | None = None) -> list[dict[str, Any]]:
@@ -308,9 +328,9 @@ def get_due_tasks(current_time: int | None = None) -> list[dict[str, Any]]:
     conn = pool.connection
     cursor = conn.cursor()
 
-    cursor.execute(
-        """
-        SELECT task_id, wa_id, message, execute_at, correlation_id, is_group
+    # 🎬 DELAYED VIDEO: Include action, video_url, caption in task retrieval
+    cursor.execute("""
+        SELECT task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption
         FROM scheduled_tasks
         WHERE execute_at <= ?
         ORDER BY execute_at ASC

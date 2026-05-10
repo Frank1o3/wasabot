@@ -18,6 +18,11 @@ class MarkerResult:
     send_video: bool = False
     video_url: str | None = None
 
+
+    # 🎬 DELAYED VIDEO: New delayed video marker support
+    send_delayed_video: bool = False
+    delayed_video_url: str | None = None
+
     # Schedule markers
     schedule_delay_seconds: int | None = None
     scheduled_message: str | None = None
@@ -28,6 +33,8 @@ class MarkerResult:
 
 # Compiled regex patterns for performance
 VIDEO_RE = re.compile(r"<send\s+vid(?:eo)?\s*(?:([^\s>]+))?>", re.IGNORECASE)
+# 🎬 DELAYED VIDEO: New regex for delayed video scheduling (30-60 seconds)
+DELAYED_VIDEO_RE = re.compile(r"<send\s+vid(?:eo)?\s+delayed\s*(?:([^\s>]+))?>", re.IGNORECASE)
 SCHEDULE_RE = re.compile(
     r"<message\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours|min|h|m|s|seg)>",
     re.IGNORECASE
@@ -37,10 +44,10 @@ SCHEDULE_RE = re.compile(
 def parse_time_unit(unit: str) -> int:
     """
     Convert time unit string to seconds.
-    
+
     Args:
         unit: Time unit string (seconds, minutes, hours, etc.)
-    
+
     Returns:
         Number of seconds
     """
@@ -60,10 +67,10 @@ def parse_time_unit(unit: str) -> int:
 def extract_markers(text: str) -> MarkerResult:
     """
     Extract all markers from AI response text.
-    
+
     Args:
         text: Raw AI response text potentially containing markers
-    
+
     Returns:
         MarkerResult with extracted data and cleaned text
     """
@@ -78,6 +85,28 @@ def extract_markers(text: str) -> MarkerResult:
             result.video_url = url.strip()
         # Remove the marker from cleaned text
         result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
+
+
+    # 🎬 DELAYED VIDEO: Check for delayed video marker FIRST (more specific)
+    delayed_video_match = DELAYED_VIDEO_RE.search(text)
+    if delayed_video_match:
+        result.send_delayed_video = True
+        url = delayed_video_match.group(1)
+        if url:
+            result.delayed_video_url = url.strip()
+        # Remove the marker from cleaned text
+        result.cleaned_text = DELAYED_VIDEO_RE.sub("", result.cleaned_text).strip()
+
+    # Extract regular video marker (only if not already a delayed video)
+    if not result.send_delayed_video:
+        video_match = VIDEO_RE.search(text)
+        if video_match:
+            result.send_video = True
+            url = video_match.group(1)
+            if url:
+                result.video_url = url.strip()
+            # Remove the marker from cleaned text
+            result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
 
     # Extract schedule marker
     schedule_match = SCHEDULE_RE.search(text)
@@ -101,10 +130,10 @@ def extract_markers(text: str) -> MarkerResult:
 def calculate_execute_at(delay_seconds: int) -> int:
     """
     Calculate Unix timestamp for task execution.
-    
+
     Args:
         delay_seconds: Seconds from now when task should execute
-    
+
     Returns:
         Unix timestamp (int)
     """
@@ -115,16 +144,17 @@ def calculate_execute_at(delay_seconds: int) -> int:
 def strip_all_markers(text: str) -> str:
     """
     Remove all markers from text without extracting them.
-    
+
     Useful when you just want clean text.
-    
+
     Args:
         text: Text potentially containing markers
-    
+
     Returns:
         Cleaned text with all markers removed
     """
     cleaned = text
+    cleaned = DELAYED_VIDEO_RE.sub("", cleaned)  # 🎬 DELAYED VIDEO: Strip delayed video markers
     cleaned = VIDEO_RE.sub("", cleaned)
     cleaned = SCHEDULE_RE.sub("", cleaned)
     # Clean up multiple whitespace
@@ -135,11 +165,11 @@ def strip_all_markers(text: str) -> str:
 def has_any_marker(text: str) -> bool:
     """
     Check if text contains any markers.
-    
+
     Args:
         text: Text to check
-    
+
     Returns:
         True if any marker found, False otherwise
     """
-    return bool(VIDEO_RE.search(text) or SCHEDULE_RE.search(text))
+    return bool(DELAYED_VIDEO_RE.search(text) or VIDEO_RE.search(text) or SCHEDULE_RE.search(text))

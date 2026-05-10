@@ -89,14 +89,27 @@ class TaskScheduler:
         message = task["message"]
         correlation_id = task.get("correlation_id")
         is_group = task.get("is_group", False)
+        # 🎬 DELAYED VIDEO: New fields for video actions
+        action = task.get("action", "send_message")
+        video_url = task.get("video_url")
+        caption = task.get("caption")
 
         # Set correlation ID for this task's context
         with CorrelationContext(correlation_id):
             try:
-                logger.info(f"scheduled_task_executing | task_id={task_id} | wa_id={wa_id}")
+                logger.info(f"scheduled_task_executing | task_id={task_id} | wa_id={wa_id} | action={action}")
 
-                # Send the message via WhatsApp API
-                success = await self._whatsapp_client.send_text(wa_id, message)
+                # 🎬 DELAYED VIDEO: Handle different action types
+                if action == "send_video":
+                    # Send video task
+                    if video_url:
+                        success = await self._whatsapp_client.send_video(wa_id, video_url, caption=caption)
+                    else:
+                        logger.error(f"scheduled_video_task_missing_url | task_id={task_id}")
+                        success = False
+                else:
+                    # Default: send text message
+                    success = await self._whatsapp_client.send_text(wa_id, message)
 
                 if success:
                     logger.info(f"scheduled_task_completed | task_id={task_id}")

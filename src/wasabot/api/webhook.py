@@ -21,6 +21,10 @@ from wasabot.services.logger import (
 )
 from wasabot.services.voice import get_voice_service
 from wasabot.services.whatsapp_api import get_whatsapp_client
+from wasabot.services.voice import get_voice_service
+from wasabot.services.ai_pipeline import process_user_message, AIPipelineResult
+from wasabot.services.scheduler import start_scheduler
+from wasabot.models.webhook import Message
 
 logger = get_logger(__name__)
 
@@ -40,7 +44,7 @@ async def webhook_get(request: Request) -> PlainTextResponse:
     Handles GET requests with hub.mode, hub.challenge, hub.verify_token params.
     """
     from wasabot.config import get_settings
-    
+
     params = dict(request.query_params)
     mode = params.get("hub.mode") or params.get("hub_mode")
     challenge = params.get("hub.challenge") or params.get("hub_challenge")
@@ -176,7 +180,40 @@ async def _process_voice_message(
             logger.info(f"voice_message_completed | wa_id={wa_id}")
 
         except Exception as e:
-            logger.error(f"voice_message_processing_failed | error={e!s}")
+            logger.error(f"voice_message_processing_failed | error={str(e)}")
+
+
+# 🚀 FUTURE CAPABILITY: Stub handlers for new message types
+
+
+async def _handle_sticker_message(msg: Message, correlation_id: str) -> None:
+    """
+    🚀 FUTURE CAPABILITY: Process sticker — download, react, or ignore based on persona.
+
+    TODO: Implement full sticker handling logic.
+    """
+    logger.info("sticker_received", extra={"meta": {"correlation_id": correlation_id, "animated": msg.sticker.animated if msg.sticker else None}})
+
+
+async def _handle_reaction_message(msg: Message, correlation_id: str) -> None:
+    """
+    🚀 FUTURE CAPABILITY: React to reactions — e.g., acknowledge with emoji or ignore.
+
+    TODO: Implement full reaction handling logic.
+    """
+    emoji = msg.reaction.emoji if msg.reaction else "❌"
+    target_msg_id = msg.reaction.message_id if msg.reaction else None
+    logger.info("reaction_received", extra={"meta": {"correlation_id": correlation_id, "emoji": emoji, "target_msg_id": target_msg_id}})
+
+
+async def _handle_edit_message(msg: Message, correlation_id: str) -> None:
+    """
+    🚀 FUTURE CAPABILITY: Handle message edits — update conversation history or ignore.
+
+    TODO: Implement full edit handling logic.
+    """
+    original_id = msg.edit.original_message_id if msg.edit else None
+    logger.info("message_edited", extra={"meta": {"correlation_id": correlation_id, "original_id": original_id}})
 
 
 @router.post("/")
@@ -243,6 +280,40 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
                     is_group,
                 )
                 messages_processed += 1
+
+        # 🚀 FUTURE CAPABILITY: Route new message types to stub handlers
+        # These handlers log the event and return quickly without blocking
+
+        # Get all messages from payload for iterating new types
+        all_messages = payload.all_messages
+
+        for msg in all_messages:
+            # Skip already processed text and voice messages
+            if msg.is_text or msg.is_voice or msg.is_audio:
+                continue
+
+            user_id = msg.from_
+            is_group = msg.is_group_message
+
+            # Route by message type
+            if msg.is_sticker:
+                logger.info(f"sticker_message_queued | from={user_id}")
+                background_tasks.add_task(_handle_sticker_message, msg, correlation_id)
+                messages_processed += 1
+            elif msg.is_reaction:
+                logger.info(f"reaction_message_queued | from={user_id}")
+                background_tasks.add_task(_handle_reaction_message, msg, correlation_id)
+                messages_processed += 1
+            elif msg.is_edit:
+                logger.info(f"edit_message_queued | from={user_id}")
+                background_tasks.add_task(_handle_edit_message, msg, correlation_id)
+                messages_processed += 1
+            else:
+                # Unknown message type - just log
+                logger.debug(f"unknown_message_type | from={user_id} | type={msg.type}")
+
+        # Save raw for debugging (optional)
+        temp_file.write_text(str(raw_payload))
 
         logger.info(f"webhook_processing_complete | messages_queued={messages_processed}")
 
