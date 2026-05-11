@@ -58,7 +58,7 @@ Marcadores especiales que puedes usar:
 Ejemplos de marcadores:
 - "Aquí tienes lo que pediste <send vid>"
 - "Te recuerdo en 5 minutos <message 5 minutes>"
-- "Dame un segundo <send video https://example.com/video.mp4>"
+- "Dame un segundo <send video>"
 - "Voy a buscarte algo bueno <send video delayed>"
 - "En realidad eso no es así <contextual reply>"
 

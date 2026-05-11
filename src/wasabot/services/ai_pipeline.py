@@ -29,7 +29,7 @@ from wasabot.services.prompt_builder import build_system_prompt, update_profile_
 logger = get_logger(__name__)
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
-RICKROLL_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+RICKROLL_URL = "https://slide-avoid-ages-volvo.trycloudflare.com/static/videos/long2.mp4"
 # Default caption for delayed videos
 DELAYED_VIDEO_CAPTION = "👀 aquí está lo que pediste"
 
