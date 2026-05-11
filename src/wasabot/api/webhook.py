@@ -16,7 +16,7 @@ from fastapi.responses import PlainTextResponse
 from wasabot.analyzer import analyze_payload_safe, get_message_summary
 from wasabot.config import get_settings
 from wasabot.models.webhook import Message
-from wasabot.services.ai_pipeline import process_user_message
+from wasabot.services.ai_pipeline import RICKROLL_URL, process_user_message
 from wasabot.services.db import save_profile
 from wasabot.services.logger import (
     CorrelationContext,
@@ -147,16 +147,14 @@ async def _process_text_message(
 
             # Send video if marker was present (immediate, not delayed)
             if result.send_video:
-                video_url = result.video_url
-                if video_url:
-                    await whatsapp_client.send_video(
-                        wa_id,
-                        video_url,
-                        caption=result.reply,
-                        reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
-                    )
-                else:
-                    logger.warning(f"video_marker_without_url | wa_id={wa_id}")
+                # Use provided URL or default to Rickroll if no URL specified
+                video_url = result.video_url or RICKROLL_URL
+                await whatsapp_client.send_video(
+                    wa_id,
+                    video_url,
+                    caption=result.reply,
+                    reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                )
 
             logger.info(
                 f"text_message_completed | wa_id={wa_id} | reply_length={len(result.reply)}"
