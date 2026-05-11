@@ -7,6 +7,7 @@ Background scheduler using APScheduler for polling and executing scheduled tasks
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import logging
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -15,6 +16,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 from wasabot.services.db import delete_task, get_due_tasks
 from wasabot.services.logger import CorrelationContext, get_logger
 from wasabot.services.whatsapp_api import get_whatsapp_client
+
+# 🤫 SILENCE APSCHEDULER NOISE
+# This prevents the generic "Job executed successfully" logs from cluttering the output
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
 
 logger = get_logger(__name__)
 
@@ -66,10 +71,12 @@ class TaskScheduler:
             due_tasks = get_due_tasks(current_time)
 
             if not due_tasks:
-                logger.debug("scheduler_poll_no_due_tasks")
+                # 🤫 SILENT POLL: No log at INFO level.
+                # If you really need to see this, change logger level to DEBUG.
                 return
 
-            logger.info(f"scheduler_poll_executing | count={len(due_tasks)}")
+            # 📢 ACTIVE POLL: Log when we actually have work to do
+            logger.info(f"scheduler_poll_found_tasks | count={len(due_tasks)}")
 
             # Execute each due task
             for task in due_tasks:
@@ -103,6 +110,8 @@ class TaskScheduler:
                     f"scheduled_task_executing | task_id={task_id} | wa_id={wa_id} | action={action}"
                 )
 
+                success = False
+
                 # 🎬 DELAYED VIDEO: Handle different action types
                 if action == "send_video":
                     # Send video task
@@ -111,7 +120,7 @@ class TaskScheduler:
                             wa_id,
                             video_url,
                             caption=caption,
-                            reply_to_message_id=reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                            reply_to_message_id=reply_to_message_id,
                         )
                     else:
                         logger.error(f"scheduled_video_task_missing_url | task_id={task_id}")
@@ -121,21 +130,26 @@ class TaskScheduler:
                     success = await self._whatsapp_client.send_text(
                         wa_id,
                         message,
-                        reply_to_message_id=reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                        reply_to_message_id=reply_to_message_id,
                     )
 
+                # ✅ EXPLICIT SUCCESS/FAILURE LOGGING
                 if success:
-                    logger.info(f"scheduled_task_completed | task_id={task_id}")
+                    logger.info(f"scheduled_task_success | task_id={task_id} | wa_id={wa_id}")
                 else:
-                    logger.error(f"scheduled_task_send_failed | task_id={task_id}")
+                    logger.error(
+                        f"scheduled_task_failed | task_id={task_id} | wa_id={wa_id} | reason=api_returned_false"
+                    )
 
             except Exception as e:
-                logger.error(f"scheduled_task_execution_failed | task_id={task_id} | error={e!s}")
+                # ❌ EXCEPTION LOGGING
+                logger.error(f"scheduled_task_exception | task_id={task_id} | error={e!s}")
+
             finally:
                 # Always delete task after execution (success or failure)
                 # This prevents infinite loops on persistent failures
                 delete_task(task_id)
-                logger.debug(f"scheduled_task_deleted | task_id={task_id}")
+                logger.debug(f"scheduled_task_deleted_from_db | task_id={task_id}")
 
 
 # Global scheduler instance
