@@ -131,7 +131,6 @@ class AIPipeline:
                 messages=messages,
                 max_tokens=300,  # Keep responses short
                 temperature=0.8,  # Slightly creative for natural conversation
-                reasoning_effort="default",
                 stream=False
             )
 

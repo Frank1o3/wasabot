@@ -43,7 +43,7 @@ logger.info("webhook_module_loaded")
 # Note: Scheduler is started by the main app (app.py) when uvicorn runs
 
 
-def spawn(coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+def spawn(coro: Coroutine[Any, Any, Any]) -> None:
     task = asyncio.create_task(coro)
 
     def _done(task: asyncio.Task[Any]) -> None:
@@ -53,7 +53,6 @@ def spawn(coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
             logger.error(f"background_task_failed | error={e!s}")
 
     task.add_done_callback(_done)
-    return task
 
 
 @router.get("/")
