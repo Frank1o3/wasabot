@@ -23,7 +23,7 @@ from wasabot.services.db import (
     save_profile,
 )
 from wasabot.services.logger import get_correlation_id, get_logger
-from wasabot.services.markers import CONTEXTUAL_REPLY_RE, extract_markers
+from wasabot.services.markers import CONTEXTUAL_REPLY_RE, SCHEDULE_RE, extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
 
 logger = get_logger(__name__)
@@ -154,6 +154,32 @@ class AIPipeline:
                 logger.info(f"contextual_reply_detected | wa_id={wa_id}")
             else:
                 reply_to_id = None  # DEFAULT: no context, prevents double-sending
+
+            # ⏰ SAFETY NET: Auto-inject schedule marker if user requested scheduling but AI forgot the marker
+            # Check for common Spanish scheduling phrases in the original user message
+            scheduling_phrases = [
+                "escríbeme en",
+                "avísame en",
+                "avísame luego",
+                "recordatorio en",
+                "en un minuto",
+                "en unos minutos",
+                "en una hora",
+                "luego me",
+                "después me",
+                "más tarde",
+                "en un rato",
+                "en breve",
+                "pronto",
+            ]
+            user_asked_for_schedule = any(phrase in user_message.lower() for phrase in scheduling_phrases)
+            
+            # If user asked for scheduling but AI didn't include marker, auto-inject it
+            if user_asked_for_schedule and marker_result.schedule_delay_seconds is None:
+                # Default to 1 minute (60 seconds) as a reasonable fallback
+                marker_result.schedule_delay_seconds = 60
+                marker_result.scheduled_message = clean_reply
+                logger.info(f"scheduling_marker_auto_injected | wa_id={wa_id} | reason=user_requested_but_ai_omitted")
 
             # Step 7: Save conversation to history (clean reply, no markers)
             add_conversation(wa_id, "user", user_message)
