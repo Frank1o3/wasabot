@@ -23,7 +23,7 @@ from wasabot.services.db import (
     save_profile,
 )
 from wasabot.services.logger import get_correlation_id, get_logger
-from wasabot.services.markers import extract_markers
+from wasabot.services.markers import CONTEXTUAL_REPLY_RE, extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
 
 logger = get_logger(__name__)
@@ -46,6 +46,7 @@ class AIPipelineResult:
         delayed_video_url: str | None = None,
         schedule_delay_seconds: int | None = None,
         scheduled_message: str | None = None,
+        reply_to_message_id: str | None = None,  # 👤 HUMANITY FEATURE: Contextual reply target
     ) -> None:
         self.reply = reply
         self.send_video = send_video
@@ -55,6 +56,7 @@ class AIPipelineResult:
         self.delayed_video_url = delayed_video_url
         self.schedule_delay_seconds = schedule_delay_seconds
         self.scheduled_message = scheduled_message
+        self.reply_to_message_id = reply_to_message_id  # 🐍 FIX: conditional contextual reply
 
 
 class AIPipeline:
@@ -143,6 +145,16 @@ class AIPipeline:
             marker_result = extract_markers(ai_response)
             clean_reply = marker_result.cleaned_text
 
+            # 👤 HUMANITY FEATURE: Detect contextual reply marker and conditionally set reply_to_message_id
+            # 🐍 FIX: conditional contextual reply - only use context when AI explicitly requests it
+            use_contextual = bool(CONTEXTUAL_REPLY_RE.search(ai_response))
+            if use_contextual:
+                clean_reply = CONTEXTUAL_REPLY_RE.sub("", clean_reply).strip()
+                reply_to_id = incoming_message_id
+                logger.info(f"contextual_reply_detected | wa_id={wa_id}")
+            else:
+                reply_to_id = None  # DEFAULT: no context, prevents double-sending
+
             # Step 7: Save conversation to history (clean reply, no markers)
             add_conversation(wa_id, "user", user_message)
             add_conversation(wa_id, "assistant", clean_reply)
@@ -230,6 +242,7 @@ class AIPipeline:
                 delayed_video_url=marker_result.delayed_video_url,
                 schedule_delay_seconds=marker_result.schedule_delay_seconds,
                 scheduled_message=marker_result.scheduled_message,
+                reply_to_message_id=reply_to_id,  # 🐍 FIX: conditional contextual reply
             )
 
         except Exception as e:

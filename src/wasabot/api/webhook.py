@@ -111,9 +111,6 @@ async def _process_text_message(
             # Send reply via WhatsApp API
             whatsapp_client = get_whatsapp_client()
 
-            # Send text reply
-            await whatsapp_client.send_text(wa_id, result.reply)
-
             # 👤 HUMANITY FEATURE: Calculate typing delay based on reply length
             # 25 chars/sec, capped at 15s, with ±10% jitter for human feel
             reply_length = len(result.reply)
@@ -140,11 +137,12 @@ async def _process_text_message(
                 # Wait for typing delay before sending reply
                 await asyncio.sleep(typing_delay_seconds)
 
-            # Send text reply with contextual reference
+            # 🐍 FIX: conditional contextual reply - send ONCE with optional context from AI pipeline
+            # Send text reply with contextual reference (only if AI requested it)
             await whatsapp_client.send_text(
                 wa_id,
                 result.reply,
-                reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                reply_to_message_id=result.reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply (AI-driven)
             )
 
             # Send video if marker was present (immediate, not delayed)
