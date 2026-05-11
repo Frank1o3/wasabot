@@ -17,7 +17,7 @@ from wasabot.analyzer import analyze_payload_safe, get_message_summary
 from wasabot.config import get_settings
 from wasabot.models.webhook import Message
 from wasabot.services.ai_pipeline import RICKROLL_URL, process_user_message
-from wasabot.services.db import save_profile
+from wasabot.services.db import add_task, save_profile
 from wasabot.services.logger import (
     CorrelationContext,
     get_logger,
@@ -145,8 +145,37 @@ async def _process_text_message(
                 reply_to_message_id=result.reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply (AI-driven)
             )
 
-            # Send video if marker was present (immediate, not delayed)
-            if result.send_video:
+            # 🎬 DELAYED VIDEO: Handle delayed video scheduling (30-60 seconds random)
+            if result.send_delayed_video:
+                import time
+                import uuid
+
+                task_id = str(uuid.uuid4())
+                delay_seconds = random.randint(30, 60)  # Random delay between 30-60 seconds
+                execute_at = int(time.time()) + delay_seconds
+
+                # Use the video URL from result or default to Rickroll
+                video_url = result.delayed_video_url or RICKROLL_URL
+
+                # Save scheduled task to database
+                add_task(
+                    task_id=task_id,
+                    wa_id=wa_id,
+                    message="",  # Empty message for video tasks
+                    execute_at=execute_at,
+                    correlation_id=correlation_id,
+                    is_group=is_group,
+                    action="send_video",
+                    video_url=video_url,
+                    caption="👀 aquí está lo que pediste",
+                    reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply when video is sent
+                )
+                logger.info(
+                    f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}"
+                )
+
+            # Send immediate video if marker was present (not delayed)
+            elif result.send_video:
                 # Use provided URL or default to Rickroll if no URL specified
                 video_url = result.video_url or RICKROLL_URL
                 await whatsapp_client.send_video(
