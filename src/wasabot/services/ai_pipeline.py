@@ -23,7 +23,7 @@ from wasabot.services.db import (
     save_profile,
 )
 from wasabot.services.logger import get_correlation_id, get_logger
-from wasabot.services.markers import CONTEXTUAL_REPLY_RE, extract_markers
+from wasabot.services.markers import CONTEXTUAL_REPLY_RE, calculate_execute_at, extract_markers
 from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
 
 logger = get_logger(__name__)
@@ -197,9 +197,7 @@ class AIPipeline:
                     is_group=is_group,
                     action="send_video",
                     video_url=video_url,
-                    caption=DELAYED_VIDEO_CAPTION,
-                    # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply when video is sent
-                    reply_to_message_id=incoming_message_id,
+                    caption=DELAYED_VIDEO_CAPTION
                 )
                 logger.info(
                     f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}"
@@ -220,9 +218,7 @@ class AIPipeline:
                     message=marker_result.scheduled_message or clean_reply,
                     execute_at=execute_at,
                     correlation_id=correlation_id,
-                    is_group=is_group,
-                    # 👤 HUMANITY FEATURE: Store incoming message ID for contextual reply
-                    reply_to_message_id=incoming_message_id,
+                    is_group=is_group
                 )
                 logger.info(
                     f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s"
