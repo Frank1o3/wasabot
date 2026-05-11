@@ -9,6 +9,8 @@ WhatsApp webhook handler with AI pipeline integration.
 import asyncio
 import random
 import secrets
+import time
+import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import PlainTextResponse
@@ -45,7 +47,6 @@ async def webhook_get(request: Request) -> PlainTextResponse:
     WhatsApp/Meta webhook verification endpoint.
     Handles GET requests with hub.mode, hub.challenge, hub.verify_token params.
     """
-    from wasabot.config import get_settings
 
     params = dict(request.query_params)
     mode = params.get("hub.mode") or params.get("hub_mode")
@@ -119,13 +120,13 @@ async def _process_text_message(
             typing_delay_ms = max(base_delay_ms + jitter, 1000)  # Minimum 1s
 
             # Safety cap: if AI generation already took >8s, cap delay at 3s
-            # (We can't measure exact AI time here, so we just cap total delay)
             typing_delay_ms = min(typing_delay_ms, 15000)
             typing_delay_seconds = typing_delay_ms / 1000
 
             # 👤 HUMANITY FEATURE: Send typing indicator (fire-and-forget)
             if incoming_message_id:
                 settings = get_settings()
+                # ✅ FIX: Use create_task instead of asyncio.run (can't nest run() in async)
                 asyncio.create_task(
                     send_typing_indicator(
                         settings.wa_phone_number_id,
@@ -137,19 +138,8 @@ async def _process_text_message(
                 # Wait for typing delay before sending reply
                 await asyncio.sleep(typing_delay_seconds)
 
-            # 🐍 FIX: conditional contextual reply - send ONCE with optional context from AI pipeline
-            # Send text reply with contextual reference (only if AI requested it)
-            await whatsapp_client.send_text(
-                wa_id,
-                result.reply,
-                reply_to_message_id=result.reply_to_message_id,  # 👤 HUMANITY FEATURE: Contextual reply (AI-driven)
-            )
-
             # 🎬 DELAYED VIDEO: Handle delayed video scheduling (30-60 seconds random)
             if result.send_delayed_video:
-                import time
-                import uuid
-
                 task_id = str(uuid.uuid4())
                 delay_seconds = random.randint(30, 60)  # Random delay between 30-60 seconds
                 execute_at = int(time.time()) + delay_seconds
@@ -167,22 +157,37 @@ async def _process_text_message(
                     is_group=is_group,
                     action="send_video",
                     video_url=video_url,
-                    caption="👀 aquí está lo que pediste",
-                    reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply when video is sent
+                    caption=result.reply,  # ✅ FIX: Use reply as caption
+                    reply_to_message_id=incoming_message_id,
                 )
                 logger.info(
                     f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}"
                 )
+                return
 
-            # Send immediate video if marker was present (not delayed)
-            elif result.send_video:
+            # ✅ FIX: Send immediate video BEFORE text (if requested)
+            if result.send_video:
                 # Use provided URL or default to Rickroll if no URL specified
                 video_url = result.video_url or RICKROLL_URL
+
+                logger.info(f"sending_immediate_video | wa_id={wa_id} | url={video_url}")
+
+                # Send video with the AI's reply as caption (single combined message)
                 await whatsapp_client.send_video(
                     wa_id,
                     video_url,
-                    caption=result.reply,
-                    reply_to_message_id=incoming_message_id,  # 👤 HUMANITY FEATURE: Contextual reply
+                    caption=result.reply,  # ✅ FIX: Attach reply as caption
+                    reply_to_message_id=incoming_message_id,
+                )
+                logger.info(f"text_message_completed | wa_id={wa_id} | video_sent=True")
+                return
+
+            if result.reply:
+                # 🐍 FIX: conditional contextual reply - send ONCE with optional context from AI pipeline
+                await whatsapp_client.send_text(
+                    wa_id,
+                    result.reply,
+                    reply_to_message_id=result.reply_to_message_id,
                 )
 
             logger.info(
@@ -201,17 +206,12 @@ async def _process_voice_message(
 ) -> None:
     """
     Process a voice message: download → transcribe → AI pipeline.
-
-    This runs in the background to ensure webhook responds within 3 seconds.
     """
     with CorrelationContext(correlation_id):
         try:
             logger.info(f"voice_message_processing | wa_id={wa_id}")
-
-            # Ensure profile exists
             save_profile(wa_id=wa_id)
 
-            # Download audio from WhatsApp
             whatsapp_client = get_whatsapp_client()
             audio_data = await whatsapp_client.download_media(media_url)
 
@@ -219,33 +219,40 @@ async def _process_voice_message(
                 logger.error("voice_download_failed | wa_id={wa_id}")
                 return
 
-            # Transcribe with Groq Whisper
             voice_service = get_voice_service()
             transcribed_text = await voice_service.transcribe_audio(audio_data)
 
             if not transcribed_text:
                 logger.warning("voice_transcription_empty | wa_id={wa_id}")
-                # Send acknowledgment even if transcription failed
                 await whatsapp_client.send_text(wa_id, "No escuché bien, ¿puedes repetir? 🤷")
                 return
 
             logger.info(f"voice_transcribed | wa_id={wa_id} | text='{transcribed_text[:50]}...'")
 
-            # Process transcribed text through AI pipeline
             result = await process_user_message(wa_id, transcribed_text, is_group)
 
             if result is None:
                 logger.error("ai_pipeline_returned_none | wa_id={wa_id}")
                 return
 
-            # Send reply
-            await whatsapp_client.send_text(wa_id, result.reply)
-
-            # Send video if marker was present
+            # ✅ FIX: Handle video FIRST with fallback URL
             if result.send_video:
-                video_url = result.video_url
-                if video_url:
-                    await whatsapp_client.send_video(wa_id, video_url, caption=result.reply)
+                # Use provided URL OR default to Rickroll
+                video_url = result.video_url or RICKROLL_URL
+
+                logger.info(f"sending_voice_response_video | wa_id={wa_id} | url={video_url}")
+
+                # Send video with text as caption
+                await whatsapp_client.send_video(
+                    wa_id,
+                    video_url,
+                    caption=result.reply,
+                    reply_to_message_id=result.reply_to_message_id,
+                )
+            else:
+                # Only send text if no video requested
+                if result.reply:
+                    await whatsapp_client.send_text(wa_id, result.reply)
 
             logger.info(f"voice_message_completed | wa_id={wa_id}")
 
