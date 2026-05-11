@@ -142,10 +142,7 @@ class WhatsAppAPIClient:
         }
 
         # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
-        if reply_to_message_id:
-            payload["context"] = {"message_id": reply_to_message_id}
-
-        # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
+        # 🐍 FIX: conditional contextual reply - only add context when explicitly requested
         if reply_to_message_id:
             payload["context"] = {"message_id": reply_to_message_id}
 
@@ -193,10 +190,7 @@ class WhatsAppAPIClient:
             payload["video"]["caption"] = caption
 
         # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
-        if reply_to_message_id:
-            payload["context"] = {"message_id": reply_to_message_id}
-
-        # 👤 HUMANITY FEATURE: Add contextual reply if message ID provided
+        # 🐍 FIX: conditional contextual reply - only add context when explicitly requested
         if reply_to_message_id:
             payload["context"] = {"message_id": reply_to_message_id}
 

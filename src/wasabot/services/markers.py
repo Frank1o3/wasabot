@@ -38,6 +38,8 @@ DELAYED_VIDEO_RE = re.compile(r"<send\s+vid(?:eo)?\s+delayed\s*(?:([^\s>]+))?>",
 SCHEDULE_RE = re.compile(
     r"<message\s+(\d+)\s+(second|seconds|minute|minutes|hour|hours|min|h|m|s|seg)>", re.IGNORECASE
 )
+# 👤 HUMANITY FEATURE: Contextual reply marker - AI-driven quote bubble
+CONTEXTUAL_REPLY_RE = re.compile(r"<contextual\s+reply>|<quote\s+last>|<reply\s+to\s+previous>", re.IGNORECASE)
 
 
 def parse_time_unit(unit: str) -> int:
@@ -152,6 +154,7 @@ def strip_all_markers(text: str) -> str:
         Cleaned text with all markers removed
     """
     cleaned = text
+    cleaned = CONTEXTUAL_REPLY_RE.sub("", cleaned)  # 👤 HUMANITY FEATURE: Strip contextual reply markers
     cleaned = DELAYED_VIDEO_RE.sub("", cleaned)  # 🎬 DELAYED VIDEO: Strip delayed video markers
     cleaned = VIDEO_RE.sub("", cleaned)
     cleaned = SCHEDULE_RE.sub("", cleaned)
@@ -170,4 +173,9 @@ def has_any_marker(text: str) -> bool:
     Returns:
         True if any marker found, False otherwise
     """
-    return bool(DELAYED_VIDEO_RE.search(text) or VIDEO_RE.search(text) or SCHEDULE_RE.search(text))
+    return bool(
+        CONTEXTUAL_REPLY_RE.search(text)  # 👤 HUMANITY FEATURE: Check contextual reply marker
+        or DELAYED_VIDEO_RE.search(text)
+        or VIDEO_RE.search(text)
+        or SCHEDULE_RE.search(text)
+    )
