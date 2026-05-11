@@ -200,6 +200,7 @@ class Message(BaseModel):
         "order",
         "system",
         "unknown",
+        "edit"
     ]
 
     # Group-specific field (only present for group messages)

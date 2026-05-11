@@ -7,9 +7,11 @@ WhatsApp webhook handler with AI pipeline integration.
 """
 
 import asyncio
+from collections.abc import Coroutine
 import random
 import secrets
 import time
+from typing import Any
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Request
@@ -39,6 +41,19 @@ setup_logging()
 
 logger.info("webhook_module_loaded")
 # Note: Scheduler is started by the main app (app.py) when uvicorn runs
+
+
+def spawn(coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+    task = asyncio.create_task(coro)
+
+    def _done(task: asyncio.Task[Any]) -> None:
+        try:
+            task.result()
+        except Exception as e:
+            logger.error(f"background_task_failed | error={e!s}")
+
+    task.add_done_callback(_done)
+    return task
 
 
 @router.get("/")
@@ -127,7 +142,7 @@ async def _process_text_message(
             if incoming_message_id:
                 settings = get_settings()
                 # ✅ FIX: Use create_task instead of asyncio.run (can't nest run() in async)
-                asyncio.create_task(
+                spawn(
                     send_typing_indicator(
                         settings.wa_phone_number_id,
                         settings.wa_access_token,
@@ -360,7 +375,7 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
 
             # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
             settings = get_settings()
-            asyncio.create_task(
+            spawn(
                 mark_message_read(
                     settings.wa_phone_number_id,
                     settings.wa_access_token,
@@ -393,7 +408,7 @@ async def webhook_post(request: Request, background_tasks: BackgroundTasks) -> P
 
                 # 👤 HUMANITY FEATURE: Mark message as read immediately (fire-and-forget)
                 settings = get_settings()
-                asyncio.create_task(
+                spawn(
                     mark_message_read(
                         settings.wa_phone_number_id,
                         settings.wa_access_token,

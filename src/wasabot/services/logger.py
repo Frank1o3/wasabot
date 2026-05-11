@@ -80,7 +80,7 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-class JSONHandler(logging.StreamHandler):
+class JSONHandler(logging.StreamHandler[str]):
     """Stream handler that uses JSON formatter."""
 
     def __init__(self) -> None:

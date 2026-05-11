@@ -29,7 +29,7 @@ from wasabot.services.prompt_builder import build_system_prompt, update_profile_
 logger = get_logger(__name__)
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
-RICKROLL_URL = "https://bag-largely-weapon-parent.trycloudflare.com/static/videos/long2.mp4"
+RICKROLL_URL = "https://seemed-believed-installing-stay.trycloudflare.com/static/videos/long2.mp4"
 # Default caption for delayed videos
 DELAYED_VIDEO_CAPTION = "👀 aquí está lo que pediste"
 
@@ -128,9 +128,11 @@ class AIPipeline:
 
             response = self._client.chat.completions.create(
                 model=self._model,
-                messages=messages,  # type: ignore[arg-type]
+                messages=messages,
                 max_tokens=300,  # Keep responses short
                 temperature=0.8,  # Slightly creative for natural conversation
+                reasoning_effort="default",
+                stream=False
             )
 
             ai_response = response.choices[0].message.content
@@ -172,14 +174,18 @@ class AIPipeline:
                 "en breve",
                 "pronto",
             ]
-            user_asked_for_schedule = any(phrase in user_message.lower() for phrase in scheduling_phrases)
+            user_asked_for_schedule = any(
+                phrase in user_message.lower() for phrase in scheduling_phrases
+            )
 
             # If user asked for scheduling but AI didn't include marker, auto-inject it
             if user_asked_for_schedule and marker_result.schedule_delay_seconds is None:
                 # Default to 1 minute (60 seconds) as a reasonable fallback
                 marker_result.schedule_delay_seconds = 60
                 marker_result.scheduled_message = clean_reply
-                logger.info(f"scheduling_marker_auto_injected | wa_id={wa_id} | reason=user_requested_but_ai_omitted")
+                logger.info(
+                    f"scheduling_marker_auto_injected | wa_id={wa_id} | reason=user_requested_but_ai_omitted"
+                )
 
             # Step 7: Save conversation to history (clean reply, no markers)
             add_conversation(wa_id, "user", user_message)
@@ -223,7 +229,7 @@ class AIPipeline:
                     is_group=is_group,
                     action="send_video",
                     video_url=video_url,
-                    caption=DELAYED_VIDEO_CAPTION
+                    caption=DELAYED_VIDEO_CAPTION,
                 )
                 logger.info(
                     f"delayed_video_scheduled | task_id={task_id} | delay={delay_seconds}s | wa_id={wa_id}"
@@ -244,7 +250,7 @@ class AIPipeline:
                     message=marker_result.scheduled_message or clean_reply,
                     execute_at=execute_at,
                     correlation_id=correlation_id,
-                    is_group=is_group
+                    is_group=is_group,
                 )
                 logger.info(
                     f"task_scheduled_via_marker | task_id={task_id} | delay={marker_result.schedule_delay_seconds}s"
