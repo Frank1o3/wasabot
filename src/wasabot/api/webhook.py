@@ -6,6 +6,7 @@ WhatsApp webhook handler with AI pipeline integration.
 👤 HUMANITY FEATURE: Typing indicators, contextual replies, read receipts
 """
 
+import asyncio
 import random
 import secrets
 
@@ -23,7 +24,7 @@ from wasabot.services.logger import (
     set_correlation_id,
     setup_logging,
 )
-from wasabot.services.typing import mark_message_read
+from wasabot.services.typing import mark_message_read, send_typing_indicator
 from wasabot.services.voice import get_voice_service
 from wasabot.services.whatsapp_api import get_whatsapp_client
 

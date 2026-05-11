@@ -136,22 +136,22 @@ def _init_tables(pool: DatabasePool) -> None:
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tasks_execute_at ON scheduled_tasks(execute_at)")
 
     # 🎬 DELAYED VIDEO + 👤 HUMANITY FEATURE: Add new columns to existing tables if they don't exist
-    try:
+    try:  # noqa: SIM105
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN action TEXT DEFAULT 'send_message'")
     except sqlite3.OperationalError:
         pass  # Column already exists
 
-    try:
+    try:  # noqa: SIM105
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN video_url TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
 
-    try:
+    try:  # noqa: SIM105
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN caption TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
 
-    try:
+    try:  # noqa: SIM105
         cursor.execute("ALTER TABLE scheduled_tasks ADD COLUMN reply_to_message_id TEXT")
     except sqlite3.OperationalError:
         pass  # Column already exists
@@ -252,7 +252,7 @@ def add_conversation(wa_id: str, role: str, content: str) -> None:
     if not profile_exists(wa_id):
         save_profile(wa_id=wa_id)
 
-    timestamp = int(datetime.now(timezone.utc).timestamp())
+    timestamp = int(datetime.now(UTC).timestamp())
 
     cursor.execute(
         """
