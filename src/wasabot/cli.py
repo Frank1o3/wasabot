@@ -19,23 +19,23 @@ def _get_app_ref() -> str:
     for module in ("app", "main"):
         if (SCRIPT_DIR / f"{module}.py").exists():
             return f"{module}:app"
-    print("❌ Error: Could not find 'app.py' or 'main.py' in the same directory as cli.py.")
+    print("Error: Could not find 'app.py' or 'main.py' in the same directory as cli.py.")
     sys.exit(1)
 
 
 def dev() -> None:
     """Run in development mode (auto-reload) on 0.0.0.0:8888."""
     app_ref = _get_app_ref()
-    print(f"🛠️  DEV mode: {app_ref} → http://localhost:8888")
-    print("   🔁 Auto-reload: enabled")
+    print(f"DEV mode: {app_ref} → http://localhost:8888")
+    print("Auto-reload: enabled")
     uvicorn.run(app_ref, host="0.0.0.0", port=8888, reload=True)
 
 
 def prod() -> None:
     """Run in production mode (2 workers) on 0.0.0.0:8888."""
     app_ref = _get_app_ref()
-    print(f"🚀 PROD mode: {app_ref} → http://localhost:8888")
-    print("   👷 Workers: 2")
+    print(f"PROD mode: {app_ref} → http://localhost:8888")
+    print("Workers: 2")
     uvicorn.run(app_ref, host="0.0.0.0", port=8888, workers=2)
 
 

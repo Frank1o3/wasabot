@@ -29,7 +29,7 @@ from wasabot.services.prompt_builder import build_system_prompt, update_profile_
 logger = get_logger(__name__)
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
-RICKROLL_URL = "https://slide-avoid-ages-volvo.trycloudflare.com/static/videos/long2.mp4"
+RICKROLL_URL = "https://bag-largely-weapon-parent.trycloudflare.com/static/videos/long2.mp4"
 # Default caption for delayed videos
 DELAYED_VIDEO_CAPTION = "👀 aquí está lo que pediste"
 
@@ -173,7 +173,7 @@ class AIPipeline:
                 "pronto",
             ]
             user_asked_for_schedule = any(phrase in user_message.lower() for phrase in scheduling_phrases)
-            
+
             # If user asked for scheduling but AI didn't include marker, auto-inject it
             if user_asked_for_schedule and marker_result.schedule_delay_seconds is None:
                 # Default to 1 minute (60 seconds) as a reasonable fallback
