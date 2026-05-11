@@ -16,13 +16,13 @@ venv/
 .env.local
 *.env.*
 
-# Logs and temp files
+# Logs
 *.log
 *.tmp
 *.swp
 *.swo
 
-# Editors
+# Editor
 .vscode/
 .idea/
 *.sublime-project

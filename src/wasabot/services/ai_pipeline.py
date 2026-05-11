@@ -155,6 +155,32 @@ class AIPipeline:
             else:
                 reply_to_id = None  # DEFAULT: no context, prevents double-sending
 
+            # ⏰ SAFETY NET: Auto-inject schedule marker if user requested scheduling but AI forgot the marker
+            # Check for common Spanish scheduling phrases in the original user message
+            scheduling_phrases = [
+                "escríbeme en",
+                "avísame en",
+                "avísame luego",
+                "recordatorio en",
+                "en un minuto",
+                "en unos minutos",
+                "en una hora",
+                "luego me",
+                "después me",
+                "más tarde",
+                "en un rato",
+                "en breve",
+                "pronto",
+            ]
+            user_asked_for_schedule = any(phrase in user_message.lower() for phrase in scheduling_phrases)
+            
+            # If user asked for scheduling but AI didn't include marker, auto-inject it
+            if user_asked_for_schedule and marker_result.schedule_delay_seconds is None:
+                # Default to 1 minute (60 seconds) as a reasonable fallback
+                marker_result.schedule_delay_seconds = 60
+                marker_result.scheduled_message = clean_reply
+                logger.info(f"scheduling_marker_auto_injected | wa_id={wa_id} | reason=user_requested_but_ai_omitted")
+
             # Step 7: Save conversation to history (clean reply, no markers)
             add_conversation(wa_id, "user", user_message)
             add_conversation(wa_id, "assistant", clean_reply)
