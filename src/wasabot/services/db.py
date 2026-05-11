@@ -314,6 +314,7 @@ def add_task(
     action: str = "send_message",
     video_url: str | None = None,
     caption: str | None = None,
+    reply_to_message_id: str | None = None,  # 👤 HUMANITY FEATURE: Contextual reply support
 ) -> None:
     """
     Add a scheduled task.
@@ -328,6 +329,7 @@ def add_task(
         action: Task action type ('send_message' or 'send_video')
         video_url: URL of video to send (for send_video action)
         caption: Caption for video (for send_video action)
+        reply_to_message_id: 👤 HUMANITY FEATURE: Message ID to quote (for contextual reply)
     """
     pool = get_db_pool()
     conn = pool.connection
@@ -335,8 +337,8 @@ def add_task(
 
     cursor.execute(
         """
-        INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scheduled_tasks (task_id, wa_id, message, execute_at, correlation_id, is_group, action, video_url, caption, reply_to_message_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
             task_id,
@@ -348,6 +350,7 @@ def add_task(
             action,
             video_url,
             caption,
+            reply_to_message_id,
         ),
     )
 
