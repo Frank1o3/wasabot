@@ -77,16 +77,6 @@ def extract_markers(text: str) -> MarkerResult:
     """
     result = MarkerResult(cleaned_text=text)
 
-    # Extract video marker
-    video_match = VIDEO_RE.search(text)
-    if video_match:
-        result.send_video = True
-        url = video_match.group(1)
-        if url:
-            result.video_url = url.strip()
-        # Remove the marker from cleaned text
-        result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
-
     # 🎬 DELAYED VIDEO: Check for delayed video marker FIRST (more specific)
     delayed_video_match = DELAYED_VIDEO_RE.search(text)
     if delayed_video_match:
@@ -96,17 +86,19 @@ def extract_markers(text: str) -> MarkerResult:
             result.delayed_video_url = url.strip()
         # Remove the marker from cleaned text
         result.cleaned_text = DELAYED_VIDEO_RE.sub("", result.cleaned_text).strip()
+        # Clean up multiple whitespace that may result from marker removal
+        result.cleaned_text = re.sub(r"\s+", " ", result.cleaned_text).strip()
+        return result
 
-    # Extract regular video marker (only if not already a delayed video)
-    if not result.send_delayed_video:
-        video_match = VIDEO_RE.search(text)
-        if video_match:
-            result.send_video = True
-            url = video_match.group(1)
-            if url:
-                result.video_url = url.strip()
-            # Remove the marker from cleaned text
-            result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
+    # Extract regular video marker (only if NOT a delayed video)
+    video_match = VIDEO_RE.search(text)
+    if video_match:
+        result.send_video = True
+        url = video_match.group(1)
+        if url:
+            result.video_url = url.strip()
+        # Remove the marker from cleaned text
+        result.cleaned_text = VIDEO_RE.sub("", result.cleaned_text).strip()
 
     # Extract schedule marker
     schedule_match = SCHEDULE_RE.search(text)
