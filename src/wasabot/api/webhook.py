@@ -21,7 +21,16 @@ from wasabot.analyzer import analyze_payload_safe, get_message_summary
 from wasabot.config import get_settings
 from wasabot.models.webhook import Message
 from wasabot.services.ai_pipeline import RICKROLL_URL, process_user_message
-from wasabot.services.db import add_task, save_profile
+from wasabot.services.db import (
+    add_task,
+    clear_all_conversations,
+    clear_all_tasks,
+    delete_profile_and_conversations,
+    find_conversations_about_person,
+    get_profile_by_wa_id,
+    save_profile,
+    search_profiles_by_name,
+)
 from wasabot.services.logger import (
     CorrelationContext,
     get_logger,
@@ -95,6 +104,92 @@ async def webhook_get(request: Request) -> PlainTextResponse:
     return PlainTextResponse(content="Verification failed", status_code=403)
 
 
+async def _handle_slash_commands(
+    wa_id: str,
+    message_body: str,
+    correlation_id: str,
+    is_group: bool = False,
+    incoming_message_id: str | None = None,
+) -> bool:
+    """
+    Handle slash commands like /clear chats, /clear tasks, /remove [user].
+    
+    Returns True if a command was handled, False otherwise.
+    """
+    with CorrelationContext(correlation_id):
+        try:
+            msg_lower = message_body.strip().lower()
+            
+            # /clear chats - wipe all conversations
+            if msg_lower == "/clear chats" or msg_lower == "/clear chat":
+                clear_all_conversations()
+                whatsapp_client = get_whatsapp_client()
+                await whatsapp_client.send_text(
+                    wa_id,
+                    "✅ Todos los chats han sido eliminados.",
+                    reply_to_message_id=incoming_message_id,
+                )
+                logger.info(f"slash_command_executed | wa_id={wa_id} | command=clear_chats")
+                return True
+            
+            # /clear tasks - wipe all scheduled tasks
+            if msg_lower == "/clear tasks" or msg_lower == "/clear task":
+                clear_all_tasks()
+                whatsapp_client = get_whatsapp_client()
+                await whatsapp_client.send_text(
+                    wa_id,
+                    "✅ Todas las tareas programadas han sido eliminadas.",
+                    reply_to_message_id=incoming_message_id,
+                )
+                logger.info(f"slash_command_executed | wa_id={wa_id} | command=clear_tasks")
+                return True
+            
+            # /remove [user] - remove irrelevant conversations for a specific user
+            if msg_lower.startswith("/remove "):
+                parts = message_body.strip().split(maxsplit=1)
+                if len(parts) > 1:
+                    user_name = parts[1].strip()
+                    # Search for profiles matching the name
+                    matching_profiles = search_profiles_by_name(user_name)
+                    if matching_profiles:
+                        deleted_count = 0
+                        for profile in matching_profiles:
+                            profile_wa_id = profile.get("wa_id")
+                            if profile_wa_id:
+                                delete_profile_and_conversations(profile_wa_id)
+                                deleted_count += 1
+                        whatsapp_client = get_whatsapp_client()
+                        await whatsapp_client.send_text(
+                            wa_id,
+                            f"✅ Se eliminaron {deleted_count} conversaciones irrelevantes de '{user_name}'.",
+                            reply_to_message_id=incoming_message_id,
+                        )
+                        logger.info(f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | count={deleted_count}")
+                    else:
+                        whatsapp_client = get_whatsapp_client()
+                        await whatsapp_client.send_text(
+                            wa_id,
+                            f"❌ No se encontró ningún usuario con el nombre '{user_name}'.",
+                            reply_to_message_id=incoming_message_id,
+                        )
+                        logger.info(f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | result=not_found")
+                else:
+                    whatsapp_client = get_whatsapp_client()
+                    await whatsapp_client.send_text(
+                        wa_id,
+                        "⚠️ Uso: /remove [nombre_usuario]",
+                        reply_to_message_id=incoming_message_id,
+                    )
+                return True
+
+            
+            return False
+
+        except Exception as e:
+            logger.error(f"slash_command_failed | error={e!s}")
+            return False
+
+
 async def _process_text_message(
     wa_id: str,
     message_body: str,
@@ -115,6 +210,13 @@ async def _process_text_message(
 
             # Ensure profile exists (basic initialization)
             save_profile(wa_id=wa_id)
+
+            # Check for slash commands first
+            command_handled = await _handle_slash_commands(
+                wa_id, message_body, correlation_id, is_group, incoming_message_id
+            )
+            if command_handled:
+                return
 
             # Process through AI pipeline
             result = await process_user_message(wa_id, message_body, is_group, incoming_message_id)

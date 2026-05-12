@@ -326,3 +326,60 @@ def update_profile_with_context(
             updated = True
 
     return profile if updated else None
+
+
+def build_user_context_for_ai(
+    wa_id: str,
+    person_name: str | None = None,
+) -> str:
+    """
+    Build context about a specific person for the AI to use in responses.
+    This allows the AI to talk about users as if it really knows them.
+    
+    Args:
+        wa_id: WhatsApp ID of the current user
+        person_name: Name of the person being asked about (optional)
+    
+    Returns:
+        Context string to add to the system prompt
+    """
+    from wasabot.services.db import find_conversations_about_person, get_profile_by_wa_id, search_profiles_by_name
+    
+    context_parts = []
+    
+    # If asking about a specific person
+    if person_name:
+        # Search for profiles with that name
+        matching_profiles = search_profiles_by_name(person_name)
+        
+        if matching_profiles:
+            context_parts.append(f"\n\nInformación sobre {person_name}:")
+            for idx, prof in enumerate(matching_profiles[:3], 1):
+                prof_name = prof.get("name", "Desconocido")
+                prof_traits = prof.get("traits", {})
+                prof_topics = prof.get("topics", [])
+                
+                if prof_traits or prof_topics:
+                    traits_str = ""
+                    if prof_traits:
+                        traits_list = [f"{k}: {v}" for k, v in list(prof_traits.items())[:3]]
+                        traits_str = ", ".join(traits_list)
+                    
+                    topics_str = ""
+                    if prof_topics:
+                        topics_str = ", ".join(prof_topics[:3])
+                    
+                    context_parts.append(f"- {prof_name}: {traits_str} {topics_str}".strip())
+        
+        # Find conversations mentioning this person
+        conversations = find_conversations_about_person(person_name, limit=5)
+        
+        if conversations:
+            context_parts.append(f"\n\nConversaciones recientes sobre {person_name}:")
+            for conv in conversations[:3]:
+                content = conv.get("content", "")[:100]
+                role = conv.get("role", "unknown")
+                context_parts.append(f"- [{role}]: {content}...")
+    
+    return "\n".join(context_parts)
+
