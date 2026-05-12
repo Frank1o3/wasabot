@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from wasabot.services.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def build_system_prompt(
     profile: dict[str, Any] | None,
@@ -313,6 +317,8 @@ def update_profile_with_context(
 ) -> dict[str, Any] | None:
     """
     Extract potential profile updates from conversation.
+    This is a basic sync update for simple things like name extraction.
+    For rich profile enrichment (traits, topics, notes, status), use enrich_profile_from_conversation().
     """
     if profile is None:
         profile = {}
@@ -326,6 +332,143 @@ def update_profile_with_context(
             updated = True
 
     return profile if updated else None
+
+
+async def enrich_profile_from_conversation(
+    wa_id: str,
+    conversation_limit: int = 20,
+) -> None:
+    """
+    Use AI to analyze conversation history and enrich user profile with:
+    - traits: Personality characteristics, preferences, demographics
+    - topics: Summary of all relevant topics discussed
+    - notes: Nicknames, small details, emotional hooks for fake emotional side
+    - status: Current topic they're talking about
+    
+    This should be called periodically or after significant conversations.
+    """
+    from groq import Groq
+    from wasabot.config import get_settings
+    from wasabot.services.db import load_conversation, load_profile, save_profile
+    
+    logger = get_logger(__name__)
+    
+    try:
+        # Load existing profile
+        profile = load_profile(wa_id)
+        if not profile:
+            return
+        
+        # Load conversation history
+        conversations = load_conversation(wa_id, limit=conversation_limit)
+        
+        if len(conversations) < 2:
+            # Not enough conversation to analyze
+            return
+        
+        # Build conversation text for analysis
+        conv_text = "\n".join([
+            f"{msg['role']}: {msg['content']}"
+            for msg in conversations[-15:]  # Use last 15 messages for analysis
+        ])
+        
+        # Get Groq client
+        settings = get_settings()
+        client = Groq(api_key=settings.groq_api_key)
+        
+        # Build prompt for profile enrichment
+        enrichment_prompt = f"""Eres un analista de perfiles de usuarios. Analiza esta conversación y extrae información para enriquecer el perfil del usuario.
+
+Conversación reciente:
+{conv_text}
+
+Responde SOLO con JSON en este formato exacto:
+{{
+    "traits": {{
+        "key": "value"
+    }},
+    "topics": ["topic1", "topic2"],
+    "notes": "detalles pequeños, apodos, cosas que hacen al usuario único",
+    "status": "tema actual de conversación"
+}}
+
+Reglas:
+- traits: máximo 5 características clave (personalidad, gustos, demografía)
+- topics: lista de temas relevantes discutidos (máximo 8)
+- notes: detalles emocionales, apodos, preferencias pequeñas (máximo 200 chars)
+- status: el tema que están discutiendo actualmente (o "general" si no hay tema claro)
+- Si no puedes inferir algo, usa null o lista vacía
+- Responde únicamente el JSON, sin texto adicional"""
+
+        response = client.chat.completions.create(
+            model=settings.groq_model,
+            messages=[
+                {"role": "system", "content": "Eres un analista de perfiles. Responde SOLO con JSON válido."},
+                {"role": "user", "content": enrichment_prompt}
+            ],
+            max_tokens=500,
+            temperature=0.5,
+            stream=False,
+        )
+        
+        ai_analysis = response.choices[0].message.content
+        
+        if not ai_analysis:
+            logger.warning(f"profile_enrichment_empty_response | wa_id={wa_id}")
+            return
+        
+        # Parse JSON response
+        import json
+        import re
+        
+        # Try to extract JSON from response (in case AI adds extra text)
+        json_match = re.search(r'\{[\s\S]*\}', ai_analysis)
+        if json_match:
+            ai_analysis = json_match.group(0)
+        
+        analysis_data = json.loads(ai_analysis)
+        
+        # Update profile with enriched data
+        new_traits = analysis_data.get("traits", {})
+        new_topics = analysis_data.get("topics", [])
+        new_notes = analysis_data.get("notes")
+        new_status = analysis_data.get("status")
+        
+        # Merge with existing profile data intelligently
+        existing_traits = profile.get("traits", {}) or {}
+        existing_topics = profile.get("topics", []) or []
+        existing_notes = profile.get("notes", "") or ""
+        
+        # Merge traits (new values override old)
+        merged_traits = {**existing_traits, **new_traits} if new_traits else existing_traits
+        
+        # Merge topics (combine and deduplicate, keep most recent)
+        all_topics = list(dict.fromkeys(existing_topics + new_topics))[-10:] if new_topics else existing_topics
+        
+        # Append notes (keep it concise)
+        if new_notes:
+            if existing_notes:
+                merged_notes = f"{existing_notes[:150]} | {new_notes[:150]}"
+            else:
+                merged_notes = new_notes[:200]
+        else:
+            merged_notes = existing_notes
+        
+        # Save enriched profile
+        save_profile(
+            wa_id=wa_id,
+            traits=merged_traits if merged_traits else None,
+            topics=all_topics if all_topics else None,
+            notes=merged_notes if merged_notes else None,
+            status=new_status if new_status else None,
+        )
+        
+        logger.info(
+            f"profile_enriched | wa_id={wa_id} | traits={len(merged_traits)} | topics={len(all_topics)} | status={new_status}"
+        )
+        
+    except Exception as e:
+        logger.error(f"profile_enrichment_failed | wa_id={wa_id} | error={e!s}")
 
 
 def build_user_context_for_ai(

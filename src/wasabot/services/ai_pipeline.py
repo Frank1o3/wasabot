@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import random
 import uuid
+from typing import Coroutine, Any
 
 from groq import Groq
 
@@ -24,9 +25,29 @@ from wasabot.services.db import (
 )
 from wasabot.services.logger import get_correlation_id, get_logger
 from wasabot.services.markers import CONTEXTUAL_REPLY_RE, calculate_execute_at, extract_markers
-from wasabot.services.prompt_builder import build_system_prompt, build_user_context_for_ai, update_profile_with_context
+from wasabot.services.prompt_builder import (
+    build_system_prompt,
+    build_user_context_for_ai,
+    enrich_profile_from_conversation,
+    update_profile_with_context,
+)
 
 logger = get_logger(__name__)
+
+
+def spawn(coro: Coroutine[Any, Any, Any]) -> None:
+    """Spawn a background task with error handling."""
+    import asyncio
+    
+    task = asyncio.create_task(coro)
+
+    def _done(task: asyncio.Task[Any]) -> None:
+        try:
+            task.result()
+        except Exception as e:
+            logger.error(f"background_task_failed | error={e!s}")
+
+    task.add_done_callback(_done)
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
 RICKROLL_URL = "https://cdn.mtdv.me/video/rick.mp4"
@@ -116,7 +137,7 @@ class AIPipeline:
             # 👤 HUMANITY FEATURE: Add context about people mentioned in the conversation
             # This allows the AI to talk about users as if it really knows them
             import re
-            person_name_match = re.search(r'(?:qu[eí]en es|sabes de|conoces a|hablemos de|habla(?:me)? de|háblame de|háblame sobre)\s+([A-Za-zÀ-ÿ]+)', user_message, re.IGNORECASE | re.UNICODE)
+            person_name_match = re.search(r'(?:qu[eí]n es|qui[eé]n es|sabes de|conoces a|hablemos de|habla(?:me)?\s+de|háblame\s+de|háblame\s+sobre|quiero\s+saber\s+de|dime\s+de)\s+([A-Za-zÀ-ÿ]+)', user_message, re.IGNORECASE | re.UNICODE)
             if person_name_match:
                 person_name = person_name_match.group(1).strip()
                 person_context = build_user_context_for_ai(wa_id, person_name)
@@ -201,7 +222,7 @@ class AIPipeline:
             add_conversation(wa_id, "user", user_message)
             add_conversation(wa_id, "assistant", clean_reply)
 
-            # Step 8: Update profile if we extracted new info
+            # Step 8: Update profile if we extracted new info (sync - name only)
             updated_profile = update_profile_with_context(profile, user_message, ai_response)
             if updated_profile:
                 save_profile(
@@ -211,6 +232,10 @@ class AIPipeline:
                     topics=updated_profile.get("topics"),
                     notes=updated_profile.get("notes"),
                 )
+
+            # Step 8b: Enrich profile with AI analysis (async - runs in background)
+            # This fills traits, topics, notes, and status from conversation logs
+            spawn(enrich_profile_from_conversation(wa_id, conversation_limit=20))
 
             # Step 9: Schedule tasks if markers present
             task_id = None
