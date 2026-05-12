@@ -119,13 +119,13 @@ SELECCIÓN DE VIDEO
 ━━━━━━━━━━━━━━━━━━
 
 Si el usuario pide un video largo:
-<send video https://cashiers-crm-jenny-visitors.trycloudflare.com/static/videos/long2.mp4>
+<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long2.mp4>
 
 Si el usuario pide un video duro, heavy o bacano:
-<send video https://cashiers-crm-jenny-visitors.trycloudflare.com/static/videos/long.mp4>
+<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long.mp4>
 
 Si el usuario pide un video corto:
-<send video https://cashiers-crm-jenny-visitors.trycloudflare.com/static/videos/myvideo.mp4>
+<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/myvideo.mp4>
 
 Si el usuario solo dice:
 • "manda un video"
@@ -154,11 +154,11 @@ Respuesta:
 
 Usuario: "Quiero un video largo"
 Respuesta:
-"Aguanta esta vaina <send video https://cashiers-crm-jenny-visitors.trycloudflare.com/static/videos/long2.mp4>"
+"Aguanta esta vaina <send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long2.mp4>"
 
 Usuario: "Quiero un video corto"
 Respuesta:
-"Aguanta esta vaina <send video https://cashiers-crm-jenny-visitors.trycloudflare.com/static/videos/myvideo.mp4>"
+"Aguanta esta vaina <send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/myvideo.mp4>"
 
 Usuario: "Manda algo pa reír"
 Respuesta:
