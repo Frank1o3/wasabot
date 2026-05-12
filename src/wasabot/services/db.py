@@ -299,6 +299,103 @@ def clear_conversation(wa_id: str) -> None:
     logger.info(f"conversation_cleared | wa_id={wa_id}")
 
 
+def clear_all_conversations() -> None:
+    """Clear all conversation history for all users."""
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM conversations")
+    conn.commit()
+    logger.info("all_conversations_cleared")
+
+
+def clear_all_tasks() -> None:
+    """Clear all scheduled tasks."""
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM scheduled_tasks")
+    conn.commit()
+    logger.info("all_tasks_cleared")
+
+
+def delete_profile_and_conversations(wa_id: str) -> None:
+    """Delete a user profile and all associated conversations."""
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    # Delete conversations first (foreign key constraint)
+    cursor.execute("DELETE FROM conversations WHERE wa_id = ?", (wa_id,))
+    # Then delete the profile
+    cursor.execute("DELETE FROM profiles WHERE wa_id = ?", (wa_id,))
+    conn.commit()
+    logger.info(f"profile_and_conversations_deleted | wa_id={wa_id}")
+
+
+def search_profiles_by_name(name_query: str) -> list[dict[str, Any]]:
+    """Search for profiles by name (case-insensitive partial match)."""
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "SELECT wa_id, name, traits, topics, notes FROM profiles WHERE LOWER(name) LIKE LOWER(?)",
+        (f"%{name_query}%",),
+    )
+
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        profile = dict(row)
+        if profile.get("traits"):
+            profile["traits"] = json.loads(profile["traits"])
+        if profile.get("topics"):
+            profile["topics"] = json.loads(profile["topics"])
+        results.append(profile)
+
+    return results
+
+
+def find_conversations_about_person(person_name: str, limit: int = 10) -> list[dict[str, Any]]:
+    """
+    Find conversations that mention a specific person's name.
+    Returns recent conversations where the person's name appears.
+    """
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    # Search for conversations containing the person's name
+    cursor.execute(
+        """
+        SELECT c.wa_id, c.role, c.content, c.timestamp, p.name as user_name
+        FROM conversations c
+        LEFT JOIN profiles p ON c.wa_id = p.wa_id
+        WHERE LOWER(c.content) LIKE LOWER(?)
+        ORDER BY c.timestamp DESC
+        LIMIT ?
+    """,
+        (f"%{person_name}%", limit),
+    )
+
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        conversation = dict(row)
+        results.append(conversation)
+
+    return results
+
+
+def get_profile_by_wa_id(wa_id: str) -> dict[str, Any] | None:
+    """Get a profile by WhatsApp ID with parsed JSON fields."""
+    profile = load_profile(wa_id)
+    return profile
+
+
 # ──────────────────────────────────────────────────────────────
 # Scheduled Tasks CRUD Operations
 # ──────────────────────────────────────────────────────────────

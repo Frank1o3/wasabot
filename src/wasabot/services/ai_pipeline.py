@@ -24,7 +24,7 @@ from wasabot.services.db import (
 )
 from wasabot.services.logger import get_correlation_id, get_logger
 from wasabot.services.markers import CONTEXTUAL_REPLY_RE, calculate_execute_at, extract_markers
-from wasabot.services.prompt_builder import build_system_prompt, update_profile_with_context
+from wasabot.services.prompt_builder import build_system_prompt, build_user_context_for_ai, update_profile_with_context
 
 logger = get_logger(__name__)
 
@@ -112,6 +112,17 @@ class AIPipeline:
 
             # Step 3: Build system prompt
             system_prompt = build_system_prompt(profile, user_message, is_group)
+            
+            # 👤 HUMANITY FEATURE: Add context about people mentioned in the conversation
+            # This allows the AI to talk about users as if it really knows them
+            import re
+            person_name_match = re.search(r'(?:qu[eí]en es|sabes de|conoces a|hablemos de|habla(?:me)? de|háblame de|háblame sobre)\s+([A-Za-zÀ-ÿ]+)', user_message, re.IGNORECASE | re.UNICODE)
+            if person_name_match:
+                person_name = person_name_match.group(1).strip()
+                person_context = build_user_context_for_ai(wa_id, person_name)
+                if person_context:
+                    system_prompt += person_context
+                    logger.info(f"person_context_added | person={person_name} | wa_id={wa_id}")
 
             # Step 4: Build messages array for Groq
             messages = [{"role": "system", "content": system_prompt}]
