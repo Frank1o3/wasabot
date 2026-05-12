@@ -29,7 +29,7 @@ from wasabot.services.prompt_builder import build_system_prompt, update_profile_
 logger = get_logger(__name__)
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
-RICKROLL_URL = "https://seemed-believed-installing-stay.trycloudflare.com/static/videos/long2.mp4"
+RICKROLL_URL = "https://cdn.mtdv.me/video/rick.mp4"
 # Default caption for delayed videos
 DELAYED_VIDEO_CAPTION = "👀 aquí está lo que pediste"
 
@@ -131,7 +131,7 @@ class AIPipeline:
                 messages=messages,
                 max_tokens=300,  # Keep responses short
                 temperature=0.8,  # Slightly creative for natural conversation
-                stream=False
+                stream=False,
             )
 
             ai_response = response.choices[0].message.content
