@@ -26,8 +26,6 @@ from wasabot.services.db import (
     clear_all_conversations,
     clear_all_tasks,
     delete_profile_and_conversations,
-    find_conversations_about_person,
-    get_profile_by_wa_id,
     save_profile,
     search_profiles_by_name,
 )
@@ -113,13 +111,13 @@ async def _handle_slash_commands(
 ) -> bool:
     """
     Handle slash commands like /clear chats, /clear tasks, /remove [user].
-    
+
     Returns True if a command was handled, False otherwise.
     """
     with CorrelationContext(correlation_id):
         try:
             msg_lower = message_body.strip().lower()
-            
+
             # /clear chats - wipe all conversations
             if msg_lower == "/clear chats" or msg_lower == "/clear chat":
                 clear_all_conversations()
@@ -131,7 +129,7 @@ async def _handle_slash_commands(
                 )
                 logger.info(f"slash_command_executed | wa_id={wa_id} | command=clear_chats")
                 return True
-            
+
             # /clear tasks - wipe all scheduled tasks
             if msg_lower == "/clear tasks" or msg_lower == "/clear task":
                 clear_all_tasks()
@@ -143,7 +141,7 @@ async def _handle_slash_commands(
                 )
                 logger.info(f"slash_command_executed | wa_id={wa_id} | command=clear_tasks")
                 return True
-            
+
             # /remove [user] - remove irrelevant conversations for a specific user
             if msg_lower.startswith("/remove "):
                 parts = message_body.strip().split(maxsplit=1)
@@ -164,7 +162,9 @@ async def _handle_slash_commands(
                             f"✅ Se eliminaron {deleted_count} conversaciones irrelevantes de '{user_name}'.",
                             reply_to_message_id=incoming_message_id,
                         )
-                        logger.info(f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | count={deleted_count}")
+                        logger.info(
+                            f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | count={deleted_count}"
+                        )
                     else:
                         whatsapp_client = get_whatsapp_client()
                         await whatsapp_client.send_text(
@@ -172,7 +172,9 @@ async def _handle_slash_commands(
                             f"❌ No se encontró ningún usuario con el nombre '{user_name}'.",
                             reply_to_message_id=incoming_message_id,
                         )
-                        logger.info(f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | result=not_found")
+                        logger.info(
+                            f"slash_command_executed | wa_id={wa_id} | command=remove_user | user={user_name} | result=not_found"
+                        )
                 else:
                     whatsapp_client = get_whatsapp_client()
                     await whatsapp_client.send_text(
@@ -182,7 +184,6 @@ async def _handle_slash_commands(
                     )
                 return True
 
-            
             return False
 
         except Exception as e:

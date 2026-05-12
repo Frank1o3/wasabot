@@ -8,9 +8,10 @@ AI pipeline orchestrating prompt building, Groq LLM, markers, and database.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Coroutine
 import random
+from typing import Any
 import uuid
-from typing import Coroutine, Any
 
 from groq import Groq
 
@@ -38,7 +39,7 @@ logger = get_logger(__name__)
 def spawn(coro: Coroutine[Any, Any, Any]) -> None:
     """Spawn a background task with error handling."""
     import asyncio
-    
+
     task = asyncio.create_task(coro)
 
     def _done(task: asyncio.Task[Any]) -> None:
@@ -48,6 +49,7 @@ def spawn(coro: Coroutine[Any, Any, Any]) -> None:
             logger.error(f"background_task_failed | error={e!s}")
 
     task.add_done_callback(_done)
+
 
 # 🎬 DELAYED VIDEO: Rickroll video URL for delayed sends
 RICKROLL_URL = "https://cdn.mtdv.me/video/rick.mp4"
@@ -133,11 +135,16 @@ class AIPipeline:
 
             # Step 3: Build system prompt
             system_prompt = build_system_prompt(profile, user_message, is_group)
-            
+
             # 👤 HUMANITY FEATURE: Add context about people mentioned in the conversation
             # This allows the AI to talk about users as if it really knows them
             import re
-            person_name_match = re.search(r'(?:qu[eí]n es|qui[eé]n es|sabes de|conoces a|hablemos de|habla(?:me)?\s+de|háblame\s+de|háblame\s+sobre|quiero\s+saber\s+de|dime\s+de)\s+([A-Za-zÀ-ÿ]+)', user_message, re.IGNORECASE | re.UNICODE)
+
+            person_name_match = re.search(
+                r"(?:qu[eí]n es|qui[eé]n es|sabes de|conoces a|hablemos de|habla(?:me)?\s+de|háblame\s+de|háblame\s+sobre|quiero\s+saber\s+de|dime\s+de)\s+([A-Za-zÀ-ÿ]+)",
+                user_message,
+                re.IGNORECASE | re.UNICODE,
+            )
             if person_name_match:
                 person_name = person_name_match.group(1).strip()
                 person_context = build_user_context_for_ai(wa_id, person_name)
