@@ -32,9 +32,11 @@ wheels/
 *.swp
 *.swo
 
-# Logs
-*.log
-
-# Temp files
-*.tmp
-```
+# OS
+.DS_Store
+Thumbs.db
+**/**.mp4
+data
+videos
+**/**.db
+**/**.db*
