@@ -158,13 +158,17 @@ SELECCIÓN DE VIDEO
 ━━━━━━━━━━━━━━━━━━
 
 Si el usuario pide un video largo:
-<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long2.mp4>
+<send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/long2.mp4>
 
 Si el usuario pide un video duro, heavy o bacano:
-<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long.mp4>
+<send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/long.mp4>
 
 Si el usuario pide un video corto:
-<send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/myvideo.mp4>
+<send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/myvideo.mp4>
+
+
+Si el usuario pide un video anime o hentai:
+<send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/super.mp4>
 
 Si el usuario solo dice:
 • "manda un video"
@@ -193,11 +197,11 @@ Respuesta:
 
 Usuario: "Quiero un video largo"
 Respuesta:
-"Aguanta esta vaina <send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/long2.mp4>"
+"Aguanta esta vaina <send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/long2.mp4>"
 
 Usuario: "Quiero un video corto"
 Respuesta:
-"Aguanta esta vaina <send video https://preserve-cake-tulsa-jewellery.trycloudflare.com /static/videos/myvideo.mp4>"
+"Aguanta esta vaina <send video https://monitoring-dos-reflects-expenditure.trycloudflare.com/static/videos/myvideo.mp4>"
 
 Usuario: "Manda algo pa reír"
 Respuesta:
@@ -527,7 +531,7 @@ def build_user_context_for_ai(
     """
     Build context about a specific person for the AI to use in responses.
     This allows the AI to talk about users as if it really knows them.
-    
+
     Enhanced with social graph support - can now find info about people
     through the relationships table, not just direct profiles.
 
@@ -553,7 +557,7 @@ def build_user_context_for_ai(
         # 🔍 ENHANCED: First check if the CURRENT USER has any relationship with this person
         user_relationships = get_relationships_for_user(wa_id)
         user_knows_person = False
-        
+
         for rel in user_relationships:
             if rel.get("known_person_name", "").lower() == person_name.lower():
                 user_knows_person = True
@@ -568,7 +572,7 @@ def build_user_context_for_ai(
                 if rel.get("person_notes"):
                     context_parts.append(f"   Notas: {rel['person_notes'][:100]}")
                 break
-        
+
         # Search for profiles with that name
         matching_profiles = search_profiles_by_name(person_name)
 
@@ -593,7 +597,7 @@ def build_user_context_for_ai(
 
         # 🔍 ENHANCED: Find OTHER USERS who know this person (social network)
         other_users_who_know = find_users_who_know_person(person_name)
-        
+
         if other_users_who_know and not user_knows_person:
             context_parts.append(f"\n\n🌐 Otras personas que conocen a {person_name}:")
             seen_users = set()
@@ -604,7 +608,7 @@ def build_user_context_for_ai(
                     user_name_display = rel.get("user_name", "Alguien")
                     context_str = rel.get("context", "")
                     context_parts.append(f"   - {user_name_display}{' (' + context_str + ')' if context_str else ''}")
-            
+
             # Suggest to AI that it can mention these people
             if len(seen_users) > 0:
                 context_parts.append(f"\n💡 Puedes mencionar que varias personas han hablado de {person_name}.")
@@ -618,10 +622,10 @@ def build_user_context_for_ai(
                 content = conv.get("content", "")[:100]
                 role = conv.get("role", "unknown")
                 context_parts.append(f"   - [{role}]: {content}...")
-        
+
         # 🔍 ENHANCED: Search entire network for this person
         network_results = search_people_in_network(person_name)
-        
+
         if network_results and not matching_profiles:
             context_parts.append(f"\n\n🔎 {person_name} encontrado en la red:")
             for result in network_results[:3]:
