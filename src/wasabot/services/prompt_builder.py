@@ -527,6 +527,9 @@ def build_user_context_for_ai(
     """
     Build context about a specific person for the AI to use in responses.
     This allows the AI to talk about users as if it really knows them.
+    
+    Enhanced with social graph support - can now find info about people
+    through the relationships table, not just direct profiles.
 
     Args:
         wa_id: WhatsApp ID of the current user
@@ -537,6 +540,9 @@ def build_user_context_for_ai(
     """
     from wasabot.services.db import (
         find_conversations_about_person,
+        find_users_who_know_person,
+        get_relationships_for_user,
+        search_people_in_network,
         search_profiles_by_name,
     )
 
@@ -544,12 +550,31 @@ def build_user_context_for_ai(
 
     # If asking about a specific person
     if person_name:
+        # 🔍 ENHANCED: First check if the CURRENT USER has any relationship with this person
+        user_relationships = get_relationships_for_user(wa_id)
+        user_knows_person = False
+        
+        for rel in user_relationships:
+            if rel.get("known_person_name", "").lower() == person_name.lower():
+                user_knows_person = True
+                context_parts.append(f"\n\n📌 Tú conoces a {person_name}:")
+                if rel.get("context"):
+                    context_parts.append(f"   Contexto: {rel['context']}")
+                if rel.get("person_actual_name"):
+                    context_parts.append(f"   Nombre completo: {rel['person_actual_name']}")
+                if rel.get("person_topics"):
+                    topics_str = ", ".join(rel["person_topics"][:3])
+                    context_parts.append(f"   Temas de interés: {topics_str}")
+                if rel.get("person_notes"):
+                    context_parts.append(f"   Notas: {rel['person_notes'][:100]}")
+                break
+        
         # Search for profiles with that name
         matching_profiles = search_profiles_by_name(person_name)
 
         if matching_profiles:
-            context_parts.append(f"\n\nInformación sobre {person_name}:")
-            for _, prof in enumerate(matching_profiles[:3], 1):
+            context_parts.append(f"\n\n👤 Información en perfil de {person_name}:")
+            for idx, prof in enumerate(matching_profiles[:3], 1):
                 prof_name = prof.get("name", "Desconocido")
                 prof_traits = prof.get("traits", {})
                 prof_topics = prof.get("topics", [])
@@ -564,16 +589,44 @@ def build_user_context_for_ai(
                     if prof_topics:
                         topics_str = ", ".join(prof_topics[:3])
 
-                    context_parts.append(f"- {prof_name}: {traits_str} {topics_str}".strip())
+                    context_parts.append(f"   - {prof_name}: {traits_str} {topics_str}".strip())
+
+        # 🔍 ENHANCED: Find OTHER USERS who know this person (social network)
+        other_users_who_know = find_users_who_know_person(person_name)
+        
+        if other_users_who_know and not user_knows_person:
+            context_parts.append(f"\n\n🌐 Otras personas que conocen a {person_name}:")
+            seen_users = set()
+            for rel in other_users_who_know[:5]:
+                user_wa_id = rel.get("user_wa_id")
+                if user_wa_id and user_wa_id != wa_id and user_wa_id not in seen_users:
+                    seen_users.add(user_wa_id)
+                    user_name_display = rel.get("user_name", "Alguien")
+                    context_str = rel.get("context", "")
+                    context_parts.append(f"   - {user_name_display}{' (' + context_str + ')' if context_str else ''}")
+            
+            # Suggest to AI that it can mention these people
+            if len(seen_users) > 0:
+                context_parts.append(f"\n💡 Puedes mencionar que varias personas han hablado de {person_name}.")
 
         # Find conversations mentioning this person
         conversations = find_conversations_about_person(person_name, limit=5)
 
         if conversations:
-            context_parts.append(f"\n\nConversaciones recientes sobre {person_name}:")
+            context_parts.append(f"\n\n💬 Conversaciones recientes sobre {person_name}:")
             for conv in conversations[:3]:
                 content = conv.get("content", "")[:100]
                 role = conv.get("role", "unknown")
-                context_parts.append(f"- [{role}]: {content}...")
+                context_parts.append(f"   - [{role}]: {content}...")
+        
+        # 🔍 ENHANCED: Search entire network for this person
+        network_results = search_people_in_network(person_name)
+        
+        if network_results and not matching_profiles:
+            context_parts.append(f"\n\n🔎 {person_name} encontrado en la red:")
+            for result in network_results[:3]:
+                result_name = result.get("name", "Desconocido")
+                known_by_count = result.get("known_by_count", 0)
+                context_parts.append(f"   - {result_name} (conocido por {known_by_count} persona(s))")
 
     return "\n".join(context_parts)

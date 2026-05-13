@@ -101,6 +101,23 @@ def _init_tables(pool: DatabasePool) -> None:
         )
     """)
 
+    # 👥 SOCIAL GRAPH: Relationships table to track who knows whom
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS relationships (
+            user_wa_id TEXT NOT NULL,
+            known_person_wa_id TEXT,
+            known_person_name TEXT NOT NULL,
+            context TEXT,
+            last_mentioned INTEGER,
+            PRIMARY KEY (user_wa_id, known_person_name),
+            FOREIGN KEY (user_wa_id) REFERENCES profiles(wa_id)
+        )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_relationships_user ON relationships(user_wa_id)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_relationships_person ON relationships(known_person_name)"
+    )
+
     # Conversations table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS conversations (
@@ -520,3 +537,146 @@ def get_task(task_id: str) -> dict[str, Any] | None:
     task = dict(row)
     task["is_group"] = bool(task["is_group"])
     return task
+
+
+# ──────────────────────────────────────────────────────────────
+# 👥 SOCIAL GRAPH: Relationship Management
+# ──────────────────────────────────────────────────────────────
+
+
+def add_relationship(
+    user_wa_id: str,
+    person_name: str,
+    person_wa_id: str | None = None,
+    context: str | None = None,
+) -> None:
+    """
+    Record that a user knows/about a person.
+    This builds a social graph allowing the AI to talk about people.
+    
+    Args:
+        user_wa_id: WhatsApp ID of the user who knows this person
+        person_name: Name of the person being known/mentioned
+        person_wa_id: Optional WhatsApp ID if the person is also a bot user
+        context: Context of how they know each other
+    """
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    timestamp = int(datetime.now(UTC).timestamp())
+
+    cursor.execute(
+        """
+        INSERT INTO relationships (user_wa_id, known_person_wa_id, known_person_name, context, last_mentioned)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(user_wa_id, known_person_name) DO UPDATE SET
+            known_person_wa_id = COALESCE(excluded.known_person_wa_id, relationships.known_person_wa_id),
+            context = COALESCE(excluded.context, relationships.context),
+            last_mentioned = excluded.last_mentioned
+    """,
+        (user_wa_id, person_wa_id, person_name, context, timestamp),
+    )
+
+    conn.commit()
+    logger.info(f"relationship_added | user={user_wa_id} | person={person_name}")
+
+
+def get_relationships_for_user(user_wa_id: str) -> list[dict[str, Any]]:
+    """
+    Get all people that a user knows or has talked about.
+    Returns list of relationship records with person info.
+    """
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT r.user_wa_id, r.known_person_wa_id, r.known_person_name, r.context, r.last_mentioned,
+               p.name as person_actual_name, p.topics as person_topics, p.notes as person_notes
+        FROM relationships r
+        LEFT JOIN profiles p ON r.known_person_wa_id = p.wa_id
+        WHERE r.user_wa_id = ?
+        ORDER BY r.last_mentioned DESC
+    """,
+        (user_wa_id,),
+    )
+
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        rel = dict(row)
+        if rel.get("person_topics"):
+            rel["person_topics"] = json.loads(rel["person_topics"])
+        results.append(rel)
+
+    return results
+
+
+def find_users_who_know_person(person_name: str) -> list[dict[str, Any]]:
+    """
+    Find all users who have mentioned or know a specific person.
+    Useful for group conversations or when someone asks "quién conoce a Pablo?"
+    """
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT r.user_wa_id, r.known_person_wa_id, r.context, r.last_mentioned,
+               p.name as user_name, p.topics as user_topics
+        FROM relationships r
+        LEFT JOIN profiles p ON r.user_wa_id = p.wa_id
+        WHERE LOWER(r.known_person_name) LIKE LOWER(?)
+        ORDER BY r.last_mentioned DESC
+    """,
+        (f"%{person_name}%",),
+    )
+
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        rel = dict(row)
+        if rel.get("user_topics"):
+            rel["user_topics"] = json.loads(rel["user_topics"])
+        results.append(rel)
+
+    return results
+
+
+def search_people_in_network(name_query: str) -> list[dict[str, Any]]:
+    """
+    Search for people in the entire network by name.
+    Returns both their profile info and who knows them.
+    """
+    pool = get_db_pool()
+    conn = pool.connection
+    cursor = conn.cursor()
+
+    # First, try to find exact profile matches
+    cursor.execute(
+        """
+        SELECT p.wa_id, p.name, p.traits, p.topics, p.notes,
+               COUNT(DISTINCT r.user_wa_id) as known_by_count
+        FROM profiles p
+        LEFT JOIN relationships r ON p.wa_id = r.known_person_wa_id
+        WHERE LOWER(p.name) LIKE LOWER(?)
+        GROUP BY p.wa_id
+        ORDER BY known_by_count DESC, p.last_active DESC
+    """,
+        (f"%{name_query}%",),
+    )
+
+    rows = cursor.fetchall()
+    results = []
+    for row in rows:
+        profile = dict(row)
+        if profile.get("traits"):
+            profile["traits"] = json.loads(profile["traits"])
+        if profile.get("topics"):
+            profile["topics"] = json.loads(profile["topics"])
+        results.append(profile)
+
+    return results
