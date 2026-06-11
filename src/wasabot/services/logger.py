@@ -10,7 +10,7 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 import json
 import logging
-from typing import Any
+from typing import Any, TextIO
 import uuid
 
 # 🐍 PYTHON NATIVE: ContextVar for async-safe correlation ID propagation
@@ -71,20 +71,22 @@ class JSONFormatter(logging.Formatter):
 
         # Add extra fields to meta if present
         if hasattr(record, "meta") and isinstance(record.meta, dict):
-            log_entry["meta"] = record.meta
+            log_entry["meta"] = dict(record.meta)
 
         # Add exception info if present
         if record.exc_info:
-            log_entry["meta"]["exception"] = self.formatException(record.exc_info)
+            meta_dict = log_entry.setdefault("meta", {})
+            if isinstance(meta_dict, dict):
+                meta_dict["exception"] = self.formatException(record.exc_info)
 
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-class JSONHandler(logging.StreamHandler[str]):
+class JSONHandler(logging.StreamHandler[TextIO]):
     """Stream handler that uses JSON formatter."""
 
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(None)
         self.setFormatter(JSONFormatter())
 
 

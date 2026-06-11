@@ -50,8 +50,8 @@ class VoiceService:
             )
 
             if transcription:
-                logger.info(f"voice_transcribed | length={len(transcription)}")
-                return transcription.strip()
+                logger.info(f"voice_transcribed | length={len(transcription.text)}")
+                return transcription.text.strip()
             else:
                 logger.warning("voice_transcription_empty")
                 return None

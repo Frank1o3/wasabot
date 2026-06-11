@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,7 +16,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("app_startup_starting")
     start_scheduler()
     logger.info("app_startup_complete")

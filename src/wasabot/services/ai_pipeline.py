@@ -14,6 +14,7 @@ from typing import Any
 import uuid
 
 from groq import Groq
+from groq.types.chat import ChatCompletionMessageParam
 
 from wasabot.config import get_settings
 from wasabot.services.db import (
@@ -154,7 +155,9 @@ class AIPipeline:
                     logger.info(f"person_context_added | person={person_name} | wa_id={wa_id}")
 
             # Step 4: Build messages array for Groq
-            messages = [{"role": "system", "content": system_prompt}]
+            messages: list[ChatCompletionMessageParam] = [
+                {"role": "system", "content": system_prompt}
+            ]
 
             # Add conversation history
             for msg in history:
@@ -402,7 +405,7 @@ async def _extract_and_save_relationships(
             r"(?:Vi\s+a|Estuve\s+con|Fui\s+a\s+ver\s+a|Quedé\s+con)\s+([A-Z][a-zÀ-ÿ]+)",
         ]
 
-        extracted_names = set()
+        extracted_names: set[str] = set()
 
         # Search in both user message and AI response
         for text in [user_message, ai_response]:
