@@ -1,7 +1,4 @@
 {
-  "python-envs.defaultEnvManager": "ms-python.python:poetry",
-  "python-envs.defaultPackageManager": "ms-python.python:poetry",
-  "makefile.makefilePath": "/home/franklin/Documents/wasabot/Makefile",
   "files.exclude": {
     "**/**/__pycache__": true
   }
