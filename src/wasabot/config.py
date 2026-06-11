@@ -32,18 +32,8 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.1-8b-instant"
     groq_whisper_model: str = "whisper-large-v3-turbo"
 
-    # Environment
-    environment: str = "development"
-    port: int = 8888
-    host: str = "0.0.0.0"
-
     # Database path (relative to project root)
     database_path: str = "data/wasabot.db"
-
-    @property
-    def is_production(self) -> bool:
-        """Check if running in production mode."""
-        return self.environment.lower() == "production"
 
     @property
     def absolute_db_path(self) -> Path:
@@ -55,7 +45,7 @@ class Settings(BaseSettings):
     @property
     def whatsapp_base_url(self) -> str:
         """WhatsApp Cloud API base URL."""
-        return "https://graph.facebook.com/v21.0"
+        return "https://graph.facebook.com/v25.0"
 
 
 @lru_cache

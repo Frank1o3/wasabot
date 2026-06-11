@@ -24,19 +24,19 @@ def _get_app_ref() -> str:
 
 
 def dev() -> None:
-    """Run in development mode (auto-reload) on 0.0.0.0:8888."""
+    """Run in development mode (auto-reload) on 10.0.0.84:8000."""
     app_ref = _get_app_ref()
-    print(f"DEV mode: {app_ref} → http://localhost:8888")
+    print(f"DEV mode: {app_ref} → http://10.0.0.84:8000")
     print("Auto-reload: enabled")
-    uvicorn.run(app_ref, host="0.0.0.0", port=8888, reload=True)
+    uvicorn.run(app_ref, host="10.0.0.84", port=8000, reload=True)
 
 
 def prod() -> None:
-    """Run in production mode (2 workers) on 0.0.0.0:8888."""
+    """Run in production mode (2 workers) on 10.0.0.84:8000."""
     app_ref = _get_app_ref()
-    print(f"PROD mode: {app_ref} → http://localhost:8888")
+    print(f"PROD mode: {app_ref} → http://10.0.0.84:8000")
     print("Workers: 2")
-    uvicorn.run(app_ref, host="0.0.0.0", port=8888, workers=2)
+    uvicorn.run(app_ref, host="10.0.0.84", port=8000, workers=2)
 
 
 if __name__ == "__main__":
