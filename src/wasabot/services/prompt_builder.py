@@ -607,11 +607,15 @@ def build_user_context_for_ai(
                     seen_users.add(user_wa_id)
                     user_name_display = rel.get("user_name", "Alguien")
                     context_str = rel.get("context", "")
-                    context_parts.append(f"   - {user_name_display}{' (' + context_str + ')' if context_str else ''}")
+                    context_parts.append(
+                        f"   - {user_name_display}{' (' + context_str + ')' if context_str else ''}"
+                    )
 
             # Suggest to AI that it can mention these people
             if len(seen_users) > 0:
-                context_parts.append(f"\n💡 Puedes mencionar que varias personas han hablado de {person_name}.")
+                context_parts.append(
+                    f"\n💡 Puedes mencionar que varias personas han hablado de {person_name}."
+                )
 
         # Find conversations mentioning this person
         conversations = find_conversations_about_person(person_name, limit=5)
@@ -631,6 +635,8 @@ def build_user_context_for_ai(
             for result in network_results[:3]:
                 result_name = result.get("name", "Desconocido")
                 known_by_count = result.get("known_by_count", 0)
-                context_parts.append(f"   - {result_name} (conocido por {known_by_count} persona(s))")
+                context_parts.append(
+                    f"   - {result_name} (conocido por {known_by_count} persona(s))"
+                )
 
     return "\n".join(context_parts)

@@ -377,18 +377,18 @@ async def _extract_and_save_relationships(
 ) -> None:
     """
     👥 SOCIAL GRAPH: Extract people mentioned in conversation and save relationships.
-    
+
     This function analyzes both the user message and AI response to identify
     names of people being discussed, then records these relationships in the database.
     This allows the AI to build a social network and talk about people contextually.
-    
+
     Example: If Juan talks to the bot about Pablo, we record that Juan knows Pablo.
     Later, when anyone asks about Pablo, the bot can use this info.
     """
     import re
-    
+
     logger = get_logger(__name__)
-    
+
     try:
         # Common patterns for mentioning people in Spanish
         person_patterns = [
@@ -401,9 +401,9 @@ async def _extract_and_save_relationships(
             # Simple mentions: "Pablo está...", "Vi a María..."
             r"(?:Vi\s+a|Estuve\s+con|Fui\s+a\s+ver\s+a|Quedé\s+con)\s+([A-Z][a-zÀ-ÿ]+)",
         ]
-        
+
         extracted_names = set()
-        
+
         # Search in both user message and AI response
         for text in [user_message, ai_response]:
             for pattern in person_patterns:
@@ -413,26 +413,24 @@ async def _extract_and_save_relationships(
                     # Filter out common false positives
                     if name.lower() not in ["que", "quien", "como", "cuando", "donde", "por"]:
                         extracted_names.add(name)
-        
+
         # Save each relationship found
         for person_name in extracted_names:
             # Try to capitalize properly
             person_name_formatted = person_name.capitalize()
-            
+
             add_relationship(
                 user_wa_id=wa_id,
                 person_name=person_name_formatted,
                 context=f"Mencionado en conversación: {user_message[:100]}",
             )
-            
-            logger.info(
-                f"relationship_extracted | user={wa_id} | person={person_name_formatted}"
-            )
-        
+
+            logger.info(f"relationship_extracted | user={wa_id} | person={person_name_formatted}")
+
         if extracted_names:
             logger.info(
                 f"relationships_extraction_complete | user={wa_id} | count={len(extracted_names)}"
             )
-                
+
     except Exception as e:
         logger.error(f"relationship_extraction_failed | error={e!s}")

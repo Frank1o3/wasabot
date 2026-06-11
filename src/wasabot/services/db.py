@@ -553,7 +553,7 @@ def add_relationship(
     """
     Record that a user knows/about a person.
     This builds a social graph allowing the AI to talk about people.
-    
+
     Args:
         user_wa_id: WhatsApp ID of the user who knows this person
         person_name: Name of the person being known/mentioned

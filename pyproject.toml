@@ -1,34 +1,18 @@
 [project]
 name = "wasabot"
 version = "0.1.0"
-description = "Whatsapp bot"
-authors = [
-    {name = "Frank1o3",email = "jahdy1o3@gmail.com"}
-]
-license = {text = "MIT"}
-requires-python = ">=3.14,<3.15"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
 dependencies = [
-    "pydantic (>=2.13.4,<3.0.0)",
-    "fastapi[standard] (>=0.136.1,<0.137.0)",
-    "uvicorn[standard] (>=0.46.0,<0.47.0)",
-    "groq (>=1.2.0,<2.0.0)",
-    "dotfiles (>=0.6.5,<0.7.0)",
-    "loguru (>=0.7.3,<0.8.0)",
-    "apscheduler (>=3.11.2,<4.0.0)",
-    "pydantic-settings (>=2.14.1,<3.0.0)"
-]
-
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-dev  = "wasabot.cli:dev"
-prod = "wasabot.cli:prod"
-
-[dependency-groups]
-dev = [
-    "ruff (>=0.15.12,<0.16.0)",
-    "mypy (>=2.0.0,<3.0.0)"
+    "apscheduler>=3.11.2",
+    "dotfiles>=0.6.5",
+    "fastapi[standard]>=0.136.3",
+    "groq>=1.4.0",
+    "loguru>=0.7.3",
+    "mypy>=2.1.0",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.1",
+    "ruff>=0.15.16",
+    "uvicorn[standard]>=0.49.0",
 ]
